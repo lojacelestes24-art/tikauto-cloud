@@ -535,6 +535,7 @@ def criar_campanhas():
                         while not found:
                             r_list = tiktok_get('tt_video/list', token, adv_id,
                                                 {'page': page, 'page_size': 50})
+                            add_log(job_id, f'  [debug] tt_video/list code={r_list.get("code")} msg={r_list.get("message", "")[:80]}', 'info')
                             if r_list.get('code') != 0:
                                 add_log(job_id,
                                     f'  ✗ Erro ao listar posts: {r_list.get("message", str(r_list))}', 'error')
