@@ -1,711 +1,1200 @@
-"""
-TikAuto Cloud — boldies.site
-Flask backend completo para gestão de campanhas TikTok via API oficial
-"""
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TikAuto Cloud</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:       #080810;
+  --bg2:      #0f0f1a;
+  --bg3:      #151522;
+  --border:   #1e1e30;
+  --border2:  #2a2a40;
+  --text:     #e8e8f0;
+  --text2:    #9090b0;
+  --text3:    #555570;
+  --red:      #fe2c55;
+  --cyan:     #25f4ee;
+  --green:    #20e070;
+  --yellow:   #ffcc00;
+  --purple:   #9b5de5;
+  --mono:     'Space Mono', monospace;
+  --sans:     'DM Sans', sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.5;overflow:hidden}
 
-from flask import Flask, render_template, jsonify, request, redirect, session
-import requests
-import json
-import os
-import time
-import threading
-import uuid
-from datetime import datetime
+/* ── Layout ── */
+.shell{display:flex;height:100vh}
+.nav{width:200px;min-width:200px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:0}
+.main{flex:1;overflow:hidden;display:flex;flex-direction:column}
+.topbar{height:48px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 24px;gap:12px;flex-shrink:0}
+.content{flex:1;overflow-y:auto;padding:24px}
 
-app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'tikauto-secret-2026')
+/* ── Nav ── */
+.nav-logo{padding:20px 18px 16px;border-bottom:1px solid var(--border)}
+.nav-logo-text{font-family:var(--mono);font-size:18px;font-weight:700;letter-spacing:-1px}
+.nav-logo-text span{color:var(--red)}
+.nav-version{font-size:10px;color:var(--text3);font-family:var(--mono);margin-top:2px}
+.nav-section{padding:16px 12px 6px;font-size:10px;font-weight:700;letter-spacing:2px;color:var(--text3);text-transform:uppercase}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 14px;margin:1px 8px;border-radius:8px;cursor:pointer;color:var(--text2);font-size:13px;font-weight:500;transition:all .15s;border:1px solid transparent;user-select:none}
+.nav-item:hover{background:var(--bg3);color:var(--text)}
+.nav-item.active{background:rgba(254,44,85,.12);color:var(--red);border-color:rgba(254,44,85,.2)}
+.nav-item svg{flex-shrink:0;opacity:.7}
+.nav-item.active svg{opacity:1}
+.nav-badge{margin-left:auto;background:var(--red);color:#fff;font-size:10px;font-family:var(--mono);padding:1px 6px;border-radius:10px;font-weight:700}
+.nav-footer{margin-top:auto;padding:16px;border-top:1px solid var(--border)}
+.nav-status{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text3)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);flex-shrink:0}
+.dot.red{background:var(--red);box-shadow:0 0 6px var(--red)}
 
-# ── Configuração da API TikTok ─────────────────────────────────────────
-TIKTOK_APP_ID     = os.environ.get('TIKTOK_APP_ID', '7610282489889685520')
-TIKTOK_APP_SECRET = os.environ.get('TIKTOK_APP_SECRET', '')
-TIKTOK_REDIRECT   = os.environ.get('TIKTOK_REDIRECT', 'https://boldies.site/oauth/callback')
-TIKTOK_API_BASE   = 'https://business-api.tiktok.com/open_api/v1.3'
+/* ── Topbar ── */
+.topbar-title{font-family:var(--mono);font-size:12px;color:var(--text3);flex:1}
+.topbar-title span{color:var(--cyan)}
+.stat-pill{display:flex;align-items:center;gap:6px;background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:12px;font-family:var(--mono)}
+.stat-pill strong{color:var(--cyan)}
 
-# ── Storage em JSON ────────────────────────────────────────────────────
-DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
-LOGS_DIR = os.path.join(os.path.dirname(__file__), 'logs')
-os.makedirs(DATA_DIR, exist_ok=True)
-os.makedirs(LOGS_DIR, exist_ok=True)
+/* ── Pages ── */
+.page{display:none}
+.page.active{display:block}
+.page-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;gap:16px}
+.page-title{font-size:22px;font-weight:700;letter-spacing:-.5px}
+.page-sub{font-size:12px;color:var(--text3);font-family:var(--mono);margin-top:3px}
 
-def load_data(filename, default):
-    path = os.path.join(DATA_DIR, filename)
-    if os.path.exists(path):
-        try:
-            with open(path, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except: pass
-    return default
+/* ── Cards ── */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px}
+.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:18px 20px;position:relative;overflow:hidden}
+.kpi::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,transparent 60%,rgba(255,255,255,.02));pointer-events:none}
+.kpi-val{font-size:28px;font-weight:700;font-family:var(--mono);letter-spacing:-1px}
+.kpi-val.red{color:var(--red)}
+.kpi-val.cyan{color:var(--cyan)}
+.kpi-val.green{color:var(--green)}
+.kpi-val.yellow{color:var(--yellow)}
+.kpi-label{font-size:11px;color:var(--text3);margin-top:4px;text-transform:uppercase;letter-spacing:.5px}
 
-def save_data(filename, data):
-    path = os.path.join(DATA_DIR, filename)
-    with open(path, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+/* ── Table ── */
+.table-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+table{width:100%;border-collapse:collapse}
+th{padding:10px 14px;text-align:left;font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);background:var(--bg3)}
+td{padding:11px 14px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.02)}
+.mono{font-family:var(--mono);font-size:11px;color:var(--cyan)}
 
-def get_bcs():      return load_data('bcs.json', [])
-def save_bcs(d):    save_data('bcs.json', d)
-def get_tokens():   return load_data('tokens.json', {})
-def save_tokens(d): save_data('tokens.json', d)
-def get_jobs():     return load_data('jobs.json', [])
-def save_jobs(d):   save_data('jobs.json', d)
+/* ── Buttons ── */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;border:1px solid transparent;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap;font-family:var(--sans)}
+.btn-primary{background:var(--red);color:#fff;border-color:var(--red)}
+.btn-primary:hover{background:#d41f42}
+.btn-cyan{background:var(--cyan);color:#000;border-color:var(--cyan)}
+.btn-cyan:hover{opacity:.85}
+.btn-ghost{background:transparent;color:var(--text2);border-color:var(--border2)}
+.btn-ghost:hover{background:var(--bg3);color:var(--text)}
+.btn-danger{background:transparent;color:var(--red);border-color:rgba(254,44,85,.3)}
+.btn-danger:hover{background:rgba(254,44,85,.1)}
+.btn-sm{padding:5px 10px;font-size:12px}
+.btn:disabled{opacity:.4;cursor:not-allowed}
 
-# ── Job runner em thread ───────────────────────────────────────────────
-running_jobs = {}
+/* ── Forms ── */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.form-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px}
+.form-card-title{font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--border)}
+.form-group{margin-bottom:14px}
+.form-group:last-child{margin-bottom:0}
+label{display:block;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px;letter-spacing:.2px}
+input[type=text],input[type=number],input[type=url],select,textarea{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:9px 12px;color:var(--text);font-size:13px;font-family:var(--sans);outline:none;transition:border .15s}
+input:focus,select:focus,textarea:focus{border-color:var(--red)}
+select option{background:var(--bg3)}
+textarea{resize:vertical;min-height:80px}
+.input-row{display:flex;gap:8px}
+.input-row input,.input-row select{flex:1}
+.range-row{display:flex;align-items:center;gap:12px}
+input[type=range]{flex:1;accent-color:var(--red)}
+.range-val{font-family:var(--mono);font-size:13px;color:var(--cyan);min-width:32px;text-align:right}
+.hint{font-size:11px;color:var(--text3);margin-top:4px}
+.toggle-group{display:flex;flex-wrap:wrap;gap:6px}
+.toggle-btn{padding:5px 12px;border-radius:20px;border:1px solid var(--border2);background:transparent;color:var(--text2);font-size:12px;cursor:pointer;transition:all .15s;font-family:var(--sans)}
+.toggle-btn.on{background:rgba(254,44,85,.15);color:var(--red);border-color:rgba(254,44,85,.4)}
 
-def add_log(job_id, msg, level='info'):
-    ts = datetime.now().strftime('%H:%M:%S')
-    entry = {'ts': ts, 'msg': msg, 'level': level}
-    if job_id in running_jobs:
-        running_jobs[job_id]['logs'].append(entry)
-        running_jobs[job_id]['logs'] = running_jobs[job_id]['logs'][-500:]
-    log_file = os.path.join(LOGS_DIR, f'{job_id}.jsonl')
-    with open(log_file, 'a', encoding='utf-8') as f:
-        f.write(json.dumps(entry, ensure_ascii=False) + '\n')
+/* ── Badge / Status ── */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:700;font-family:var(--mono)}
+.badge-ok{background:rgba(32,224,112,.12);color:var(--green);border:1px solid rgba(32,224,112,.25)}
+.badge-err{background:rgba(254,44,85,.12);color:var(--red);border:1px solid rgba(254,44,85,.25)}
+.badge-run{background:rgba(37,244,238,.12);color:var(--cyan);border:1px solid rgba(37,244,238,.25)}
+.badge-idle{background:var(--bg3);color:var(--text3);border:1px solid var(--border)}
 
-# ── Helpers API TikTok ─────────────────────────────────────────────────
-def tiktok_get(endpoint, token, advertiser_id, params=None):
-    url = f"{TIKTOK_API_BASE}/{endpoint}/"
-    headers = {'Access-Token': token}
-    p = {'advertiser_id': advertiser_id}
-    if params: p.update(params)
-    r = requests.get(url, headers=headers, params=p, timeout=15)
-    try:
-        return r.json()
-    except:
-        return {'code': -1, 'message': f'Resposta inválida da API: {r.text[:200]}'}
+/* ── Log ── */
+.log-box{background:#050508;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.log-top{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--border);background:var(--bg3)}
+.log-title{font-family:var(--mono);font-size:11px;color:var(--text3)}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--red);animation:blink 1s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.log-body{height:280px;overflow-y:auto;padding:10px;font-family:var(--mono);font-size:11px;line-height:1.7}
+.log-body::-webkit-scrollbar{width:4px}
+.log-body::-webkit-scrollbar-track{background:transparent}
+.log-body::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+.ll{display:flex;gap:8px}
+.lt{color:var(--text3);flex-shrink:0}
+.lm.info{color:var(--text2)}
+.lm.success{color:var(--green)}
+.lm.error{color:var(--red)}
+.lm.warn{color:var(--yellow)}
 
-def tiktok_post(endpoint, token, payload):
-    url = f"{TIKTOK_API_BASE}/{endpoint}/"
-    headers = {'Access-Token': token, 'Content-Type': 'application/json'}
-    r = requests.post(url, headers=headers, json=payload, timeout=30)
-    try:
-        return r.json()
-    except:
-        return {'code': -1, 'message': f'Resposta inválida da API: {r.text[:200]}'}
+/* ── Progress bar ── */
+.progress-wrap{background:var(--bg3);border-radius:4px;height:6px;overflow:hidden;margin:8px 0}
+.progress-fill{height:100%;border-radius:4px;background:var(--red);transition:width .3s}
+.progress-fill.green{background:var(--green)}
 
-def get_token_for_bc(bc_id):
-    tokens = get_tokens()
-    return tokens.get(str(bc_id), {}).get('access_token')
+/* ── BC card ── */
+.bc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.bc-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px;transition:all .15s}
+.bc-card:hover{border-color:var(--border2)}
+.bc-card.selected{border-color:rgba(37,244,238,.4);background:rgba(37,244,238,.04)}
+.bc-name{font-weight:700;font-size:14px;margin-bottom:4px}
+.bc-meta{font-family:var(--mono);font-size:10px;color:var(--text3)}
+.bc-row{display:flex;align-items:center;justify-content:space-between;margin-top:12px}
 
-def get_advertiser_ids(token):
-    url = f"{TIKTOK_API_BASE}/oauth2/advertiser/get/"
-    headers = {'Access-Token': token}
-    params  = {'app_id': TIKTOK_APP_ID, 'secret': TIKTOK_APP_SECRET}
-    try:
-        r = requests.get(url, headers=headers, params=params, timeout=15)
-        d = r.json()
-        if d.get('code') == 0:
-            return [str(a['advertiser_id']) for a in d['data'].get('list', [])]
-    except Exception as e:
-        print(f"Erro get_advertiser_ids: {e}")
-    return []
+/* ── Modal ── */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);z-index:100;align-items:center;justify-content:center}
+.overlay.open{display:flex}
+.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:16px;padding:28px;width:520px;max-width:95vw;max-height:90vh;overflow-y:auto}
+.modal-title{font-size:16px;font-weight:700;margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid var(--border)}
+.modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)}
 
-# ── Mapeamentos da API TikTok ──────────────────────────────────────────
+/* ── OAuth banner ── */
+.oauth-banner{background:linear-gradient(135deg,rgba(254,44,85,.15),rgba(155,93,229,.15));border:1px solid rgba(254,44,85,.3);border-radius:12px;padding:16px 20px;display:flex;align-items:center;gap:16px;margin-bottom:20px}
+.oauth-banner-icon{font-size:28px;flex-shrink:0}
+.oauth-banner-text{flex:1}
+.oauth-banner-title{font-weight:700;font-size:14px}
+.oauth-banner-sub{font-size:12px;color:var(--text2);margin-top:2px}
 
-# Configuração por objetivo: optimization_goal + billing_event corretos
-OBJETIVO_CONFIG = {
-    # VIDEO_VIEW depreciado na v1.3 — usar ENGAGED_VIEW (oficial)
-    'VIDEO_VIEWS': {
-        'objective_type'   : 'VIDEO_VIEWS',
-        'optimization_goal': 'ENGAGED_VIEW',
-        'billing_event'    : 'CPV',
-    },
-    'REACH': {
-        'objective_type'   : 'REACH',
-        'optimization_goal': 'REACH',
-        'billing_event'    : 'CPM',
-    },
-    'TRAFFIC': {
-        'objective_type'   : 'TRAFFIC',
-        'optimization_goal': 'CLICK',
-        'billing_event'    : 'CPC',
-    },
-    'ENGAGEMENT': {
-        'objective_type'   : 'ENGAGEMENT',
-        'optimization_goal': 'SHOW',
-        'billing_event'    : 'CPM',
-    },
-    'LEAD_GENERATION': {
-        'objective_type'   : 'LEAD_GENERATION',
-        'optimization_goal': 'LEAD_GENERATION',
-        'billing_event'    : 'OCPM',
-    },
-    'APP_PROMOTION': {
-        'objective_type'   : 'APP_PROMOTION',
-        'optimization_goal': 'INSTALL',
-        'billing_event'    : 'OCPM',
-    },
-    'CONVERSIONS': {
-        'objective_type'   : 'WEB_CONVERSIONS',
-        'optimization_goal': 'CONVERT',
-        'billing_event'    : 'OCPM',
-    },
-    'PRODUCT_SALES': {
-        'objective_type'   : 'PRODUCT_SALES',
-        'optimization_goal': 'CONVERT',
-        'billing_event'    : 'OCPM',
-    },
+/* ── Section head ── */
+.section-head{font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:12px;margin-top:20px}
+.section-head:first-child{margin-top:0}
+
+/* ── Job list ── */
+.job-item{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border);font-size:12px}
+.job-item:last-child{border-bottom:none}
+.job-item:hover{background:rgba(255,255,255,.02)}
+
+/* ── Checkbox multiselect ── */
+.adv-list{max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:4px}
+.adv-item{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:6px;cursor:pointer;font-family:var(--mono);font-size:11px}
+.adv-item:hover{background:var(--bg3)}
+.adv-item input{accent-color:var(--red);cursor:pointer}
+
+/* ── Empty state ── */
+.empty{padding:40px;text-align:center;color:var(--text3)}
+.empty-icon{font-size:36px;margin-bottom:12px}
+.empty-text{font-size:13px}
+
+/* ── Spinning ── */
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinning{animation:spin .7s linear infinite}
+
+/* ── Scrollbar global ── */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+
+@media(max-width:768px){
+  .nav{display:none}
+  .grid-2,.grid-3{grid-template-columns:1fr}
+  .kpi-grid{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+<body>
+
+{% if oauth_success %}
+<script>sessionStorage.setItem('oauth_success','{{ advertiser_count }}')</script>
+{% endif %}
+{% if oauth_error %}
+<script>sessionStorage.setItem('oauth_error','{{ oauth_error }}')</script>
+{% endif %}
+
+<div class="shell">
+
+<!-- ── NAV ── -->
+<nav class="nav">
+  <div class="nav-logo">
+    <div class="nav-logo-text">Tik<span>Auto</span></div>
+    <div class="nav-version">// cloud v2.0</div>
+  </div>
+  <div class="nav-section">Menu</div>
+  <div class="nav-item active" onclick="showPage('dashboard',this)">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    Dashboard
+  </div>
+  <div class="nav-item" onclick="showPage('bcs',this)">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+    Business Centers
+    <span class="nav-badge" id="nav-bc-count">0</span>
+  </div>
+  <div class="nav-section">Automação</div>
+  <div class="nav-item" onclick="showPage('contas',this)">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+    Criar Contas
+  </div>
+  <div class="nav-item" onclick="showPage('campanhas',this)">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+    Criar Campanhas
+  </div>
+  <div class="nav-section">Sistema</div>
+  <div class="nav-item" onclick="showPage('jobs',this)">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    Histórico Jobs
+  </div>
+  <div class="nav-footer">
+    <div class="nav-status">
+      <div class="dot" id="api-dot"></div>
+      <span id="api-status-text">API conectada</span>
+    </div>
+  </div>
+</nav>
+
+<!-- ── MAIN ── -->
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-title">TikAuto Cloud // <span id="topbar-page">Dashboard</span></div>
+    <div class="stat-pill">BCs: <strong id="tp-bcs">0</strong></div>
+    <div class="stat-pill">Contas: <strong id="tp-contas">0</strong></div>
+    <div class="stat-pill" id="tp-running-pill" style="display:none">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2" class="spinning"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+      <strong id="tp-running">0</strong> rodando
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ── DASHBOARD ── -->
+    <div class="page active" id="page-dashboard">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Dashboard</div>
+          <div class="page-sub">// visão geral do sistema</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="loadStats()">↻ Atualizar</button>
+      </div>
+      <div class="kpi-grid">
+        <div class="kpi"><div class="kpi-val cyan" id="d-bcs">0</div><div class="kpi-label">Business Centers</div></div>
+        <div class="kpi"><div class="kpi-val" id="d-conectados">0</div><div class="kpi-label">BCs Conectados</div></div>
+        <div class="kpi"><div class="kpi-val cyan" id="d-contas">0</div><div class="kpi-label">Total Contas</div></div>
+        <div class="kpi"><div class="kpi-val green" id="d-suc">0</div><div class="kpi-label">Campanhas OK</div></div>
+        <div class="kpi"><div class="kpi-val red" id="d-fal">0</div><div class="kpi-label">Campanhas Falha</div></div>
+        <div class="kpi"><div class="kpi-val yellow" id="d-run">0</div><div class="kpi-label">Jobs Rodando</div></div>
+      </div>
+      <div class="section-head">Jobs Recentes</div>
+      <div class="table-wrap" id="dash-jobs-wrap">
+        <div class="empty"><div class="empty-icon">⚡</div><div class="empty-text">Nenhum job iniciado ainda</div></div>
+      </div>
+    </div>
+
+    <!-- ── BUSINESS CENTERS ── -->
+    <div class="page" id="page-bcs">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Business Centers</div>
+          <div class="page-sub">// gerencie BCs e tokens OAuth</div>
+        </div>
+        <button class="btn btn-primary" onclick="openModal('modal-add-bc')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Adicionar BC
+        </button>
+      </div>
+      <div class="bc-grid" id="bc-grid">
+        <div class="empty" style="grid-column:span 3"><div class="empty-icon">🏢</div><div class="empty-text">Nenhum BC cadastrado</div></div>
+      </div>
+    </div>
+
+    <!-- ── CRIAR CONTAS ── -->
+    <div class="page" id="page-contas">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Criar Contas em Massa</div>
+          <div class="page-sub">// criação automática via TikTok Marketing API</div>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div>
+          <div class="section-head">Configuração</div>
+          <div class="form-card">
+            <div class="form-group">
+              <label>Business Center</label>
+              <select id="contas-bc-sel" onchange="onContasBcChange()">
+                <option value="">— Selecione um BC —</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Prefixo do nome da conta</label>
+              <input type="text" id="contas-prefixo" value="TK" placeholder="ex: TK, BRAND, ADV">
+              <div class="hint">Nome gerado: PREFIXO_123456</div>
+            </div>
+            <div class="form-group">
+              <label>Quantidade de contas</label>
+              <div class="range-row">
+                <input type="range" min="1" max="500" value="10" id="contas-qtd" oninput="document.getElementById('contas-qtd-val').innerText=this.value">
+                <div class="range-val" id="contas-qtd-val">10</div>
+              </div>
+            </div>
+            <div class="grid-2" style="gap:12px">
+              <div class="form-group" style="margin-bottom:0">
+                <label>Moeda</label>
+                <select id="contas-moeda">
+                  <option value="EUR">EUR — Euro</option>
+                  <option value="USD">USD — Dólar</option>
+                  <option value="BRL">BRL — Real</option>
+                  <option value="GBP">GBP — Libra</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin-bottom:0">
+                <label>Fuso horário</label>
+                <select id="contas-tz">
+                  <option value="America/Sao_Paulo">Brasília (UTC-3)</option>
+                  <option value="Europe/Lisbon">Lisboa (UTC+0)</option>
+                  <option value="Europe/Paris">Paris (UTC+1)</option>
+                  <option value="America/New_York">New York (UTC-5)</option>
+                  <option value="Etc/GMT">UTC</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div style="margin-top:14px;display:flex;gap:8px">
+            <button class="btn btn-primary" id="btn-criar-contas" onclick="iniciarCriarContas()">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              Iniciar
+            </button>
+            <button class="btn btn-danger" id="btn-stop-contas" onclick="pararJob('contas')" style="display:none">■ Parar</button>
+          </div>
+          <div id="contas-progress" style="display:none;margin-top:16px">
+            <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:4px">
+              <span>Progresso</span>
+              <span id="contas-prog-txt">0 / 0</span>
+            </div>
+            <div class="progress-wrap"><div class="progress-fill" id="contas-prog-bar" style="width:0%"></div></div>
+            <div style="display:flex;gap:16px;font-size:12px;margin-top:6px">
+              <span style="color:var(--green)">✓ <span id="contas-suc">0</span></span>
+              <span style="color:var(--red)">✗ <span id="contas-fal">0</span></span>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="section-head">Log ao Vivo</div>
+          <div class="log-box">
+            <div class="log-top">
+              <div class="live-dot" id="contas-live-dot" style="background:var(--text3)"></div>
+              <div class="log-title">Terminal · criar-contas</div>
+            </div>
+            <div class="log-body" id="log-contas">
+              <div class="ll"><span class="lm info">Aguardando início...</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── CRIAR CAMPANHAS ── -->
+    <div class="page" id="page-campanhas">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Criar Campanhas em Massa</div>
+          <div class="page-sub">// dispara campanhas em todas as contas do BC via API</div>
+        </div>
+      </div>
+      <div class="grid-2">
+        <!-- Coluna esquerda: formulário -->
+        <div style="display:flex;flex-direction:column;gap:16px">
+
+          <div class="form-card">
+            <div class="form-card-title">Campanha</div>
+            <div class="form-group">
+              <label>Business Center</label>
+              <select id="camp-bc-sel" onchange="onCampBcChange()">
+                <option value="">— Selecione um BC —</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Contas a usar</label>
+              <div style="display:flex;gap:8px;margin-bottom:6px">
+                <button class="btn btn-ghost btn-sm" onclick="selecionarTodasContas(true)">Todas</button>
+                <button class="btn btn-ghost btn-sm" onclick="selecionarTodasContas(false)">Nenhuma</button>
+                <span id="camp-contas-count" style="font-family:var(--mono);font-size:11px;color:var(--cyan);align-self:center">0 selecionadas</span>
+              </div>
+              <div class="adv-list" id="camp-adv-list">
+                <div style="padding:10px;color:var(--text3);font-size:12px">Selecione um BC primeiro</div>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Nome da Campanha</label>
+              <input type="text" id="camp-nome" placeholder="Campanha Black Friday 2026">
+            </div>
+            <div class="form-group">
+              <label>Objetivo</label>
+              <div class="toggle-group" id="obj-toggle">
+                <button class="toggle-btn on" data-val="VIDEO_VIEWS" onclick="selObj(this)">📹 Video Views</button>
+                <button class="toggle-btn" data-val="CONVERSIONS" onclick="selObj(this)">💰 Conversões</button>
+                <button class="toggle-btn" data-val="TRAFFIC" onclick="selObj(this)">🔗 Tráfego</button>
+                <button class="toggle-btn" data-val="REACH" onclick="selObj(this)">📡 Alcance</button>
+                <button class="toggle-btn" data-val="ENGAGEMENT" onclick="selObj(this)">❤️ Engajamento</button>
+                <button class="toggle-btn" data-val="LEAD_GENERATION" onclick="selObj(this)">📋 Leads</button>
+                <button class="toggle-btn" data-val="APP_PROMOTION" onclick="selObj(this)">📱 App</button>
+              </div>
+            </div>
+            <div class="grid-2" style="gap:12px">
+              <div class="form-group" style="margin-bottom:0">
+                <label>Orçamento diário (€)</label>
+                <input type="number" id="camp-budget" value="20" min="1" step="0.5">
+              </div>
+              <div class="form-group" style="margin-bottom:0">
+                <label>Qtd. Conjuntos de Anúncios</label>
+                <div class="range-row">
+                  <input type="range" min="1" max="10" value="1" id="camp-adgroups" oninput="document.getElementById('camp-adgroups-val').innerText=this.value">
+                  <div class="range-val" id="camp-adgroups-val">1</div>
+                </div>
+              </div>
+            </div>
+            <div class="form-group" style="margin-top:14px">
+              <label>Otimização de Orçamento (CBO)</label>
+              <div style="display:flex;align-items:center;gap:12px;margin-top:6px">
+                <div id="cbo-toggle" onclick="toggleCBO()" style="position:relative;width:44px;height:24px;cursor:pointer;flex-shrink:0">
+                  <div style="position:absolute;inset:0;background:var(--bg3);border:1px solid var(--border2);border-radius:12px;transition:.2s" id="cbo-track"></div>
+                  <div style="position:absolute;left:3px;top:3px;width:16px;height:16px;background:var(--text3);border-radius:50%;transition:.2s;z-index:1" id="cbo-thumb"></div>
+                </div>
+                <span id="cbo-label" style="font-size:12px;color:var(--text3)">Desativado — orçamento por conjunto</span>
+              </div>
+              <div class="hint" style="margin-top:4px">Ativado: TikTok distribui o orçamento entre os conjuntos automaticamente</div>
+            </div>
+          </div>
+
+          <div class="form-card">
+            <div class="form-card-title">Segmentação</div>
+            <div class="form-group">
+              <label>Países</label>
+              <div class="toggle-group" id="pais-toggle">
+                <button class="toggle-btn on" data-val="BR" onclick="selPais(this)">🇧🇷 Brasil</button>
+                <button class="toggle-btn" data-val="PT" onclick="selPais(this)">🇵🇹 Portugal</button>
+                <button class="toggle-btn" data-val="US" onclick="selPais(this)">🇺🇸 EUA</button>
+                <button class="toggle-btn" data-val="MX" onclick="selPais(this)">🇲🇽 México</button>
+                <button class="toggle-btn" data-val="AR" onclick="selPais(this)">🇦🇷 Argentina</button>
+                <button class="toggle-btn" data-val="CO" onclick="selPais(this)">🇨🇴 Colômbia</button>
+                <button class="toggle-btn" data-val="FR" onclick="selPais(this)">🇫🇷 França</button>
+                <button class="toggle-btn" data-val="DE" onclick="selPais(this)">🇩🇪 Alemanha</button>
+                <button class="toggle-btn" data-val="ES" onclick="selPais(this)">🇪🇸 Espanha</button>
+                <button class="toggle-btn" data-val="AE" onclick="selPais(this)">🇦🇪 Dubai</button>
+              </div>
+            </div>
+            <div class="grid-2" style="gap:12px">
+              <div class="form-group" style="margin-bottom:0">
+                <label>Idade mínima</label>
+                <select id="camp-age-min">
+                  <option value="13">13</option>
+                  <option value="18" selected>18</option>
+                  <option value="25">25</option>
+                  <option value="35">35</option>
+                  <option value="45">45</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin-bottom:0">
+                <label>Idade máxima</label>
+                <select id="camp-age-max">
+                  <option value="24">24</option>
+                  <option value="34">34</option>
+                  <option value="44" selected>44</option>
+                  <option value="54">54</option>
+                  <option value="100">55+</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group" style="margin-top:14px">
+              <label>Gênero</label>
+              <div class="toggle-group" id="gender-toggle">
+                <button class="toggle-btn on" data-val="GENDER_UNLIMITED" onclick="selGender(this)">Todos</button>
+                <button class="toggle-btn" data-val="GENDER_MALE" onclick="selGender(this)">Masculino</button>
+                <button class="toggle-btn" data-val="GENDER_FEMALE" onclick="selGender(this)">Feminino</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-card">
+            <div class="form-card-title">Pixel & Conversão</div>
+            <div class="form-group">
+              <label>Pixel ID</label>
+              <div class="input-row">
+                <input type="text" id="camp-pixel" placeholder="DME7N0BC77UC649HLLED">
+                <button class="btn btn-ghost btn-sm" onclick="carregarPixels()">Buscar</button>
+              </div>
+              <select id="camp-pixel-sel" style="margin-top:6px;display:none" onchange="document.getElementById('camp-pixel').value=this.value">
+                <option value="">— Selecione —</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Evento de Otimização</label>
+              <select id="camp-opt-event">
+                <option value="PURCHASE">Purchase (Compra)</option>
+                <option value="ADD_TO_CART">Add to Cart</option>
+                <option value="INITIATE_CHECKOUT">Initiate Checkout</option>
+                <option value="COMPLETE_REGISTRATION">Complete Registration</option>
+                <option value="SUBSCRIBE">Subscribe</option>
+                <option value="CONTACT">Contact</option>
+                <option value="PAGE_VIEW">Page View</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-card">
+            <div class="form-card-title">Criativo</div>
+            <div class="form-group">
+              <label>Código do Post TikTok (Spark Ad)</label>
+              <input type="text" id="camp-post-code" placeholder="#Dj8s20abc123xyz...">
+              <div class="hint">Código do vídeo para usar como Spark Ad</div>
+            </div>
+            <div class="form-group">
+              <label>Identity ID (TikTok Account)</label>
+              <input type="text" id="camp-identity" placeholder="ID da conta TikTok vinculada">
+            </div>
+            <div class="form-group">
+              <label>URL de Destino (produto)</label>
+              <input type="url" id="camp-url" placeholder="https://exemplo.com/produto">
+            </div>
+            <div class="form-group">
+              <label>Call to Action</label>
+              <select id="camp-cta">
+                <option value="LEARN_MORE">Saiba Mais</option>
+                <option value="SHOP_NOW">Compre Agora</option>
+                <option value="SIGN_UP">Cadastre-se</option>
+                <option value="DOWNLOAD">Baixar</option>
+                <option value="BOOK_NOW">Reserve Agora</option>
+                <option value="CONTACT_US">Contate-nos</option>
+                <option value="APPLY_NOW">Candidate-se</option>
+                <option value="GET_QUOTE">Obter Cotação</option>
+                <option value="SUBSCRIBE">Assinar</option>
+                <option value="WATCH_MORE">Assistir Mais</option>
+                <option value="ORDER_NOW">Peça Agora</option>
+                <option value="VISIT_STORE">Visitar Loja</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Nome do Ad Group</label>
+              <input type="text" id="camp-adgroup-nome" placeholder="AdGroup Principal">
+            </div>
+          </div>
+
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-primary" id="btn-criar-camp" onclick="iniciarCriarCampanhas()" style="flex:1;justify-content:center">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              Disparar Campanhas
+            </button>
+            <button class="btn btn-danger" id="btn-stop-camp" onclick="pararJob('camp')" style="display:none">■ Parar</button>
+          </div>
+        </div>
+
+        <!-- Coluna direita: log + progresso -->
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div id="camp-progress" style="display:none">
+            <div class="form-card" style="padding:14px 16px">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                <span style="font-size:12px;font-weight:600">Progresso</span>
+                <span id="camp-prog-txt" style="font-family:var(--mono);font-size:12px;color:var(--cyan)">0 / 0</span>
+              </div>
+              <div class="progress-wrap"><div class="progress-fill green" id="camp-prog-bar" style="width:0%"></div></div>
+              <div style="display:flex;gap:20px;font-size:12px;margin-top:8px">
+                <span style="color:var(--green)">✓ Sucesso: <strong id="camp-suc">0</strong></span>
+                <span style="color:var(--red)">✗ Falha: <strong id="camp-fal">0</strong></span>
+              </div>
+            </div>
+          </div>
+          <div class="section-head" style="margin-top:0">Log ao Vivo</div>
+          <div class="log-box" style="flex:1">
+            <div class="log-top">
+              <div class="live-dot" id="camp-live-dot" style="background:var(--text3)"></div>
+              <div class="log-title">Terminal · criar-campanhas</div>
+            </div>
+            <div class="log-body" id="log-camp" style="height:500px">
+              <div class="ll"><span class="lm info">Aguardando início...</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── JOBS HISTÓRICO ── -->
+    <div class="page" id="page-jobs">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Histórico de Jobs</div>
+          <div class="page-sub">// todos os jobs executados</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="loadJobs()">↻ Atualizar</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Job ID</th><th>Tipo</th><th>BC</th><th>Status</th><th>Sucesso</th><th>Falha</th><th>Data</th><th></th></tr></thead>
+          <tbody id="jobs-tbody">
+            <tr><td colspan="8"><div class="empty"><div class="empty-icon">📋</div><div class="empty-text">Nenhum job ainda</div></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+</div><!-- /shell -->
+
+<!-- ── MODALS ── -->
+
+<!-- Add BC -->
+<div class="overlay" id="modal-add-bc">
+  <div class="modal">
+    <div class="modal-title">Adicionar Business Center</div>
+    <div class="form-group">
+      <label>Nome do BC</label>
+      <input type="text" id="bc-nome-input" placeholder="ex: CANDES CAROLINE">
+    </div>
+    <div class="form-group">
+      <label>Advertiser IDs (um por linha)</label>
+      <textarea id="bc-advids-input" rows="5" placeholder="7609183845245267985&#10;7609183845245267986&#10;..."></textarea>
+      <div class="hint">Cole os IDs das contas de anúncio deste BC. Você pode sincronizar mais depois via OAuth.</div>
+    </div>
+    <div class="oauth-banner" style="margin-top:16px">
+      <div class="oauth-banner-icon">🔐</div>
+      <div class="oauth-banner-text">
+        <div class="oauth-banner-title">Conectar via OAuth TikTok</div>
+        <div class="oauth-banner-sub">Após criar o BC, conecte via OAuth para habilitar criação de campanhas via API</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-add-bc')">Cancelar</button>
+      <button class="btn btn-primary" onclick="addBC()">Criar BC</button>
+    </div>
+  </div>
+</div>
+
+<!-- OAuth Flow -->
+<div class="overlay" id="modal-oauth">
+  <div class="modal">
+    <div class="modal-title">Conectar BC via OAuth TikTok</div>
+    <div id="oauth-step-1">
+      <p style="color:var(--text2);font-size:13px;margin-bottom:16px">Clique no botão abaixo para abrir a página de autorização do TikTok. Após autorizar, copie o <code style="background:var(--bg3);padding:2px 6px;border-radius:4px;font-family:var(--mono);font-size:12px">auth_code</code> da URL de retorno e cole abaixo.</p>
+      <button class="btn btn-primary" onclick="abrirOAuth()" style="width:100%;justify-content:center;margin-bottom:16px">
+        🔐 Abrir Autorização TikTok
+      </button>
+      <div class="form-group">
+        <label>Auth Code (da URL de retorno)</label>
+        <input type="text" id="oauth-auth-code" placeholder="Cole o auth_code aqui...">
+        <div class="hint">Após autorizar no TikTok, a URL vai conter <code style="font-family:var(--mono)">?auth_code=XXXX</code> — copie e cole aqui</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-oauth')">Cancelar</button>
+      <button class="btn btn-cyan" onclick="trocarToken()">Trocar Token</button>
+    </div>
+  </div>
+</div>
+
+<!-- Job Log Viewer -->
+<div class="overlay" id="modal-job-log">
+  <div class="modal" style="width:680px">
+    <div class="modal-title">Log do Job — <span id="modal-job-id" style="font-family:var(--mono);color:var(--cyan)"></span></div>
+    <div class="log-box">
+      <div class="log-top"><div class="log-title">Log completo</div></div>
+      <div class="log-body" id="modal-log-body" style="height:400px"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-job-log')">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════
+let bcs = [];
+let currentOauthBcId = null;
+let activeJobContas = null;
+let activeJobCamp   = null;
+let logPollContas   = null;
+let logPollCamp     = null;
+let logOffsetContas = 0;
+let logOffsetCamp   = 0;
+
+// ══════════════════════════════════════════════════════
+// NAVIGATION
+// ══════════════════════════════════════════════════════
+function showPage(name, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  if (el) el.classList.add('active');
+  document.getElementById('topbar-page').innerText =
+    name.charAt(0).toUpperCase() + name.slice(1);
+  if (name === 'dashboard') loadStats();
+  if (name === 'jobs') loadJobs();
 }
 
-# IDs de localização TikTok (GeoName IDs)
-LOCATION_MAP = {
-    'BR': 3469034,  'PT': 2264397,  'US': 6252001,
-    'MX': 3996063,  'AR': 3865483,  'CO': 3686110,
-    'FR': 3017382,  'DE': 2921044,  'ES': 2510769,
-    'IT': 3175395,  'GB': 2635167,  'AE': 290557,
-    'CL': 3895114,  'PE': 3932488,  'EC': 3658394,
+// ══════════════════════════════════════════════════════
+// API HELPERS
+// ══════════════════════════════════════════════════════
+async function api(method, path, body) {
+  const opts = { method, headers: {'Content-Type': 'application/json'} };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(path, opts);
+  return r.json();
 }
 
-def get_location_ids(paises):
-    ids = [str(LOCATION_MAP[p]) for p in paises if p in LOCATION_MAP]
-    return ids if ids else ['3469034']  # Brasil como fallback
+// ══════════════════════════════════════════════════════
+// BCs
+// ══════════════════════════════════════════════════════
+async function loadBCs() {
+  bcs = await api('GET', '/api/bcs');
+  renderBCGrid();
+  renderBCSelects();
+  document.getElementById('nav-bc-count').innerText = bcs.length;
+}
 
-# ══════════════════════════════════════════════════════════════════════
-# ROTAS PRINCIPAIS
-# ══════════════════════════════════════════════════════════════════════
-
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-# ── OAuth ──────────────────────────────────────────────────────────────
-@app.route('/oauth/url')
-def oauth_url():
-    bc_id = request.args.get('bc_id', 'unknown')
-    state = f"bcid_{bc_id}"
-    url = (
-        f"https://business-api.tiktok.com/portal/auth"
-        f"?app_id={TIKTOK_APP_ID}"
-        f"&state={state}"
-        f"&redirect_uri={TIKTOK_REDIRECT}"
-    )
-    return jsonify({'ok': True, 'url': url})
-
-@app.route('/oauth/callback')
-def oauth_callback():
-    auth_code = request.args.get('auth_code')
-    state     = request.args.get('state', '')
-    error     = request.args.get('error_code')
-
-    if error:
-        return render_template('index.html', oauth_error=error)
-    if not auth_code:
-        return render_template('index.html', oauth_error='Sem auth_code')
-
-    result = _exchange_token(auth_code)
-    if not result.get('ok'):
-        return render_template('index.html', oauth_error=result.get('error', 'Erro desconhecido'))
-
-    bc_id = None
-    if state.startswith('bcid_'):
-        try: bc_id = int(state.replace('bcid_', ''))
-        except: pass
-
-    token_data = result['data']
-    tokens = get_tokens()
-    key    = str(bc_id) if bc_id else token_data.get('advertiser_id', str(time.time()))
-    tokens[key] = {
-        'access_token'  : token_data['access_token'],
-        'advertiser_id' : token_data.get('advertiser_id', ''),
-        'scope'         : token_data.get('scope', ''),
-        'token_type'    : token_data.get('token_type', 'bearer'),
-        'saved_at'      : datetime.now().isoformat(),
-        'bc_id'         : bc_id
-    }
-    save_tokens(tokens)
-
-    advs = get_advertiser_ids(token_data['access_token'])
-
-    if bc_id:
-        bcs = get_bcs()
-        for bc in bcs:
-            if bc['id'] == bc_id:
-                bc['advertiser_ids'] = advs
-                bc['token_ok'] = True
-                break
-        save_bcs(bcs)
-
-    return render_template('index.html', oauth_success=True, advertiser_count=len(advs))
-
-@app.route('/api/oauth/exchange', methods=['POST'])
-def oauth_exchange():
-    auth_code = request.json.get('auth_code')
-    bc_id     = request.json.get('bc_id')
-    if not auth_code:
-        return jsonify({'ok': False, 'error': 'auth_code obrigatório'})
-
-    result = _exchange_token(auth_code)
-    if not result.get('ok'):
-        return jsonify(result)
-
-    token_data = result['data']
-    tokens = get_tokens()
-    key    = str(bc_id) if bc_id else token_data.get('advertiser_id', str(time.time()))
-    tokens[key] = {
-        'access_token' : token_data['access_token'],
-        'advertiser_id': token_data.get('advertiser_id', ''),
-        'saved_at'     : datetime.now().isoformat(),
-        'bc_id'        : bc_id
-    }
-    save_tokens(tokens)
-
-    advs = get_advertiser_ids(token_data['access_token'])
-    if bc_id:
-        bcs = get_bcs()
-        for bc in bcs:
-            if str(bc['id']) == str(bc_id):
-                bc['advertiser_ids'] = advs
-                bc['token_ok'] = True
-                break
-        save_bcs(bcs)
-
-    return jsonify({'ok': True, 'advertiser_count': len(advs), 'advertiser_ids': advs})
-
-def _exchange_token(auth_code):
-    try:
-        url = f"{TIKTOK_API_BASE}/oauth2/access_token/"
-        payload = {
-            'app_id'    : TIKTOK_APP_ID,
-            'secret'    : TIKTOK_APP_SECRET,
-            'auth_code' : auth_code,
-            'grant_type': 'authorization_code'
+function renderBCGrid() {
+  const g = document.getElementById('bc-grid');
+  if (!bcs.length) {
+    g.innerHTML = '<div class="empty" style="grid-column:span 3"><div class="empty-icon">🏢</div><div class="empty-text">Nenhum BC cadastrado</div></div>';
+    return;
+  }
+  g.innerHTML = bcs.map(bc => {
+    const nContas = (bc.advertiser_ids || []).length;
+    const badge   = bc.token_ok
+      ? '<span class="badge badge-ok">✓ Conectado</span>'
+      : '<span class="badge badge-err">✗ Sem token</span>';
+    return `<div class="bc-card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div class="bc-name">${bc.nome}</div>
+          <div class="bc-meta">${nContas} contas · ID ${bc.id}</div>
+        </div>
+        ${badge}
+      </div>
+      <div class="bc-row" style="margin-top:14px;gap:6px;flex-wrap:wrap">
+        ${!bc.token_ok
+          ? `<button class="btn btn-primary btn-sm" onclick="iniciarOAuth(${bc.id})">🔐 Conectar OAuth</button>`
+          : `<button class="btn btn-ghost btn-sm" onclick="sincContas(${bc.id})">↻ Sync Contas</button>`
         }
-        r = requests.post(url, json=payload, timeout=15)
-        d = r.json()
-        if d.get('code') == 0:
-            return {'ok': True, 'data': d['data']}
-        return {'ok': False, 'error': d.get('message', 'Erro API TikTok')}
-    except Exception as e:
-        return {'ok': False, 'error': str(e)}
+        <button class="btn btn-ghost btn-sm" onclick="verAdvIds(${bc.id})">👁 IDs</button>
+        <button class="btn btn-danger btn-sm" onclick="delBC(${bc.id})">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
 
-# ── BCs ────────────────────────────────────────────────────────────────
-@app.route('/api/bcs', methods=['GET'])
-def api_get_bcs():
-    bcs    = get_bcs()
-    tokens = get_tokens()
-    for bc in bcs:
-        bc['token_ok'] = str(bc['id']) in tokens
-    return jsonify(bcs)
+function renderBCSelects() {
+  const opts = '<option value="">— Selecione —</option>' +
+    bcs.map(b => `<option value="${b.id}">${b.nome} (${(b.advertiser_ids||[]).length} contas)</option>`).join('');
+  ['contas-bc-sel', 'camp-bc-sel'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = opts;
+  });
+}
 
-@app.route('/api/bcs', methods=['POST'])
-def api_add_bc():
-    d = request.json
-    bcs = get_bcs()
-    bc  = {
-        'id'            : int(time.time() * 1000),
-        'nome'          : d['nome'],
-        'advertiser_ids': d.get('advertiser_ids', []),
-        'token_ok'      : False,
-        'criado_em'     : datetime.now().isoformat()
+async function addBC() {
+  const nome   = document.getElementById('bc-nome-input').value.trim();
+  const idsRaw = document.getElementById('bc-advids-input').value.trim();
+  if (!nome) return alert('Digite o nome do BC');
+  const advertiser_ids = idsRaw ? idsRaw.split('\n').map(s=>s.trim()).filter(Boolean) : [];
+  await api('POST', '/api/bcs', { nome, advertiser_ids });
+  closeModal('modal-add-bc');
+  document.getElementById('bc-nome-input').value = '';
+  document.getElementById('bc-advids-input').value = '';
+  await loadBCs();
+}
+
+async function delBC(id) {
+  if (!confirm('Remover este BC?')) return;
+  await api('DELETE', `/api/bcs/${id}`);
+  await loadBCs();
+}
+
+async function sincContas(bcId) {
+  const r = await api('GET', `/api/bcs/${bcId}/advertisers`);
+  if (r.ok) {
+    alert(`✓ ${r.total} contas sincronizadas!`);
+    await loadBCs();
+  } else {
+    alert('Erro: ' + r.error);
+  }
+}
+
+function verAdvIds(bcId) {
+  const bc = bcs.find(b => b.id === bcId);
+  if (!bc) return;
+  const ids = (bc.advertiser_ids || []).join('\n') || '(nenhum)';
+  alert(`Advertiser IDs de ${bc.nome}:\n\n${ids}`);
+}
+
+// ══════════════════════════════════════════════════════
+// OAUTH
+// ══════════════════════════════════════════════════════
+function iniciarOAuth(bcId) {
+  currentOauthBcId = bcId;
+  document.getElementById('oauth-auth-code').value = '';
+  openModal('modal-oauth');
+}
+
+async function abrirOAuth() {
+  if (!currentOauthBcId) return;
+  const r = await api('GET', `/oauth/url?bc_id=${currentOauthBcId}`);
+  if (r.ok) window.open(r.url, '_blank');
+}
+
+async function trocarToken() {
+  const authCode = document.getElementById('oauth-auth-code').value.trim();
+  if (!authCode) return alert('Cole o auth_code primeiro');
+  const r = await api('POST', '/api/oauth/exchange', {
+    auth_code: authCode,
+    bc_id: currentOauthBcId
+  });
+  if (r.ok) {
+    closeModal('modal-oauth');
+    alert(`✓ Token salvo! ${r.advertiser_count} contas encontradas.`);
+    await loadBCs();
+  } else {
+    alert('Erro: ' + r.error);
+  }
+}
+
+// ══════════════════════════════════════════════════════
+// CRIAR CONTAS
+// ══════════════════════════════════════════════════════
+function onContasBcChange() { /* nada por enquanto */ }
+
+async function iniciarCriarContas() {
+  const bcId = document.getElementById('contas-bc-sel').value;
+  if (!bcId) return alert('Selecione um BC');
+  const qtd      = parseInt(document.getElementById('contas-qtd').value);
+  const prefixo  = document.getElementById('contas-prefixo').value.trim() || 'TK';
+  const moeda    = document.getElementById('contas-moeda').value;
+  const timezone = document.getElementById('contas-tz').value;
+
+  const r = await api('POST', '/api/criar-contas', {
+    bc_id: parseInt(bcId), quantidade: qtd,
+    prefixo, moeda, timezone
+  });
+  if (!r.ok) return alert('Erro: ' + r.error);
+
+  activeJobContas = r.job_id;
+  logOffsetContas = 0;
+  document.getElementById('btn-criar-contas').disabled = true;
+  document.getElementById('btn-stop-contas').style.display = '';
+  document.getElementById('contas-progress').style.display = '';
+  document.getElementById('contas-live-dot').style.background = 'var(--red)';
+  document.getElementById('log-contas').innerHTML = '';
+
+  logPollContas = setInterval(() => pollJob('contas'), 1500);
+}
+
+function pararJob(tipo) {
+  const jobId = tipo === 'contas' ? activeJobContas : activeJobCamp;
+  if (jobId) api('POST', `/api/job/${jobId}/stop`);
+}
+
+async function pollJob(tipo) {
+  const jobId  = tipo === 'contas' ? activeJobContas : activeJobCamp;
+  const offset = tipo === 'contas' ? logOffsetContas : logOffsetCamp;
+  if (!jobId) return;
+
+  const r = await api('GET', `/api/job/${jobId}/logs?offset=${offset}`);
+
+  // Append logs
+  const logEl = document.getElementById(tipo === 'contas' ? 'log-contas' : 'log-camp');
+  r.logs.forEach(l => {
+    const div = document.createElement('div');
+    div.className = 'll';
+    div.innerHTML = `<span class="lt">${l.ts}</span><span class="lm ${l.level}">${escHtml(l.msg)}</span>`;
+    logEl.appendChild(div);
+  });
+  logEl.scrollTop = logEl.scrollHeight;
+
+  if (tipo === 'contas') logOffsetContas += r.logs.length;
+  else                   logOffsetCamp   += r.logs.length;
+
+  // Progress
+  const pct = r.total > 0 ? Math.round((r.done / r.total) * 100) : 0;
+  if (tipo === 'contas') {
+    document.getElementById('contas-prog-txt').innerText = `${r.done} / ${r.total}`;
+    document.getElementById('contas-prog-bar').style.width = pct + '%';
+    document.getElementById('contas-suc').innerText = r.sucesso;
+    document.getElementById('contas-fal').innerText = r.falha;
+  } else {
+    document.getElementById('camp-prog-txt').innerText = `${r.done} / ${r.total}`;
+    document.getElementById('camp-prog-bar').style.width = pct + '%';
+    document.getElementById('camp-suc').innerText = r.sucesso;
+    document.getElementById('camp-fal').innerText = r.falha;
+  }
+
+  // Done
+  if (r.status === 'done') {
+    clearInterval(tipo === 'contas' ? logPollContas : logPollCamp);
+    const dot = document.getElementById(tipo === 'contas' ? 'contas-live-dot' : 'camp-live-dot');
+    dot.style.background = 'var(--green)';
+    dot.style.animation  = 'none';
+    if (tipo === 'contas') {
+      document.getElementById('btn-criar-contas').disabled = false;
+      document.getElementById('btn-stop-contas').style.display = 'none';
+    } else {
+      document.getElementById('btn-criar-camp').disabled = false;
+      document.getElementById('btn-stop-camp').style.display = 'none';
     }
-    bcs.append(bc)
-    save_bcs(bcs)
-    return jsonify({'ok': True, 'bc': bc})
+    await loadBCs(); // atualiza contagem de contas
+  }
+}
 
-@app.route('/api/bcs/<int:bc_id>', methods=['DELETE'])
-def api_del_bc(bc_id):
-    bcs = [b for b in get_bcs() if b['id'] != bc_id]
-    save_bcs(bcs)
-    tokens = get_tokens()
-    tokens.pop(str(bc_id), None)
-    save_tokens(tokens)
-    return jsonify({'ok': True})
+// ══════════════════════════════════════════════════════
+// CRIAR CAMPANHAS
+// ══════════════════════════════════════════════════════
+function selObj(btn) {
+  document.querySelectorAll('#obj-toggle .toggle-btn').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  // Mostra/esconde pixel se for conversão
+  const isConv = btn.dataset.val === 'CONVERSIONS';
+}
 
-@app.route('/api/bcs/<int:bc_id>/advertisers', methods=['GET'])
-def api_get_advertisers(bc_id):
-    token = get_token_for_bc(bc_id)
-    if not token:
-        return jsonify({'ok': False, 'error': 'BC sem token. Conecte via OAuth primeiro.'})
-    advs = get_advertiser_ids(token)
-    bcs = get_bcs()
-    for bc in bcs:
-        if bc['id'] == bc_id:
-            bc['advertiser_ids'] = advs
-            break
-    save_bcs(bcs)
-    return jsonify({'ok': True, 'advertiser_ids': advs, 'total': len(advs)})
+function selPais(btn) {
+  btn.classList.toggle('on');
+}
 
-# ── Pixel ──────────────────────────────────────────────────────────────
-@app.route('/api/pixels/<int:bc_id>', methods=['GET'])
-def api_get_pixels(bc_id):
-    token = get_token_for_bc(bc_id)
-    if not token:
-        return jsonify({'ok': False, 'error': 'Sem token'})
-    bcs  = get_bcs()
-    bc   = next((b for b in bcs if b['id'] == bc_id), None)
-    if not bc or not bc.get('advertiser_ids'):
-        return jsonify({'ok': False, 'error': 'Sem advertiser IDs'})
-    adv_id = bc['advertiser_ids'][0]
-    d = tiktok_get('pixel/list', token, adv_id)
-    if d.get('code') == 0:
-        pixels = [{'id': p['pixel_id'], 'name': p['pixel_name'], 'status': p.get('status')}
-                  for p in d['data'].get('pixels', [])]
-        return jsonify({'ok': True, 'pixels': pixels})
-    return jsonify({'ok': False, 'error': d.get('message', 'Erro')})
+function selGender(btn) {
+  document.querySelectorAll('#gender-toggle .toggle-btn').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+}
 
-# ══════════════════════════════════════════════════════════════════════
-# CRIAÇÃO DE CONTAS EM MASSA (requer parceiro TikTok)
-# ══════════════════════════════════════════════════════════════════════
+function onCampBcChange() {
+  const bcId = parseInt(document.getElementById('camp-bc-sel').value);
+  const bc   = bcs.find(b => b.id === bcId);
+  const listEl = document.getElementById('camp-adv-list');
+  if (!bc || !bc.advertiser_ids || !bc.advertiser_ids.length) {
+    listEl.innerHTML = '<div style="padding:10px;color:var(--text3);font-size:12px">Nenhuma conta encontrada. Sincronize o BC primeiro.</div>';
+    document.getElementById('camp-contas-count').innerText = '0 selecionadas';
+    return;
+  }
+  listEl.innerHTML = bc.advertiser_ids.map(id =>
+    `<label class="adv-item">
+      <input type="checkbox" class="adv-chk" value="${id}" checked onchange="updateContasCount()">
+      ${id}
+    </label>`
+  ).join('');
+  updateContasCount();
+}
 
-@app.route('/api/criar-contas', methods=['POST'])
-def criar_contas():
-    return jsonify({
-        'ok': False,
-        'error': 'Criação de contas via API requer acesso de parceiro TikTok (não disponível na API padrão).'
-    })
+function updateContasCount() {
+  const n = document.querySelectorAll('.adv-chk:checked').length;
+  document.getElementById('camp-contas-count').innerText = n + ' selecionadas';
+}
 
-# ══════════════════════════════════════════════════════════════════════
-# CRIAÇÃO DE CAMPANHAS EM MASSA
-# ══════════════════════════════════════════════════════════════════════
+function selecionarTodasContas(val) {
+  document.querySelectorAll('.adv-chk').forEach(c => c.checked = val);
+  updateContasCount();
+}
 
-@app.route('/api/criar-campanhas', methods=['POST'])
-def criar_campanhas():
-    d = request.json
+async function carregarPixels() {
+  const bcId = document.getElementById('camp-bc-sel').value;
+  if (!bcId) return alert('Selecione um BC primeiro');
+  const r = await api('GET', `/api/pixels/${bcId}`);
+  if (r.ok && r.pixels.length) {
+    const sel = document.getElementById('camp-pixel-sel');
+    sel.style.display = '';
+    sel.innerHTML = '<option value="">— Selecione pixel —</option>' +
+      r.pixels.map(p => `<option value="${p.id}">${p.name} (${p.id})</option>`).join('');
+  } else {
+    alert(r.error || 'Nenhum pixel encontrado');
+  }
+}
 
-    bc_id        = d['bc_id']
-    adv_ids      = d.get('advertiser_ids', [])
-    objetivo     = d.get('objetivo', 'VIDEO_VIEWS')
-    paises       = d.get('paises', ['BR'])
-    idade_min    = d.get('idade_min', 18)
-    idade_max    = d.get('idade_max', 55)
-    gender       = d.get('gender', 'GENDER_UNLIMITED')
-    pixel_id     = d.get('pixel_id', '')
-    optimization = d.get('optimization_event', 'PURCHASE')
-    post_code    = d.get('post_code', '')
-    identity_id  = d.get('identity_id', '')
-    product_url  = d.get('product_url', '')
-    cta          = d.get('cta', 'LEARN_MORE')
-    num_adgroups = int(d.get('num_adgroups', 1))
-    budget       = float(d.get('budget', 50))
-    budget_mode  = 'BUDGET_MODE_DAY'
-    cbo_on        = bool(d.get('budget_optimize_on', False))
-    campaign_name = d.get('campaign_name', 'TikAuto')
-    adgroup_name  = d.get('adgroup_name', 'AdGroup')
+async function iniciarCriarCampanhas() {
+  const bcId = parseInt(document.getElementById('camp-bc-sel').value);
+  if (!bcId) return alert('Selecione um BC');
 
-    token = get_token_for_bc(bc_id)
-    if not token:
-        return jsonify({'ok': False, 'error': 'BC sem token OAuth'})
+  const objetivo   = document.querySelector('#obj-toggle .toggle-btn.on')?.dataset.val || 'VIDEO_VIEWS';
+  const paises     = [...document.querySelectorAll('#pais-toggle .toggle-btn.on')].map(b => b.dataset.val);
+  const gender     = document.querySelector('#gender-toggle .toggle-btn.on')?.dataset.val || 'GENDER_UNLIMITED';
+  const advIds     = [...document.querySelectorAll('.adv-chk:checked')].map(c => c.value);
 
-    if not adv_ids:
-        bcs = get_bcs()
-        bc  = next((b for b in bcs if b['id'] == bc_id), None)
-        adv_ids = bc.get('advertiser_ids', []) if bc else []
+  if (!paises.length) return alert('Selecione pelo menos um país');
+  if (!advIds.length)  return alert('Selecione pelo menos uma conta');
 
-    if not adv_ids:
-        return jsonify({'ok': False, 'error': 'Nenhum advertiser ID disponível'})
+  const cboAtivo = window._cboAtivo || false;
 
-    obj_cfg = OBJETIVO_CONFIG.get(objetivo, OBJETIVO_CONFIG['VIDEO_VIEWS'])
+  const payload = {
+    bc_id          : bcId,
+    objetivo,
+    budget_optimize_on: cboAtivo,
+    campaign_name  : document.getElementById('camp-nome').value || 'Campanha Auto',
+    budget         : parseFloat(document.getElementById('camp-budget').value) || 20,
+    num_adgroups   : parseInt(document.getElementById('camp-adgroups').value) || 1,
+    adgroup_name   : document.getElementById('camp-adgroup-nome').value || 'AdGroup',
+    pixel_id       : document.getElementById('camp-pixel').value,
+    optimization_event: document.getElementById('camp-opt-event').value,
+    countries      : paises,
+    age_min        : parseInt(document.getElementById('camp-age-min').value),
+    age_max        : parseInt(document.getElementById('camp-age-max').value),
+    gender,
+    languages      : ['pt'],
+    post_code      : document.getElementById('camp-post-code').value,
+    identity_id    : document.getElementById('camp-identity').value,
+    product_url    : document.getElementById('camp-url').value,
+    cta            : document.getElementById('camp-cta').value,
+    advertiser_ids : advIds,
+  };
 
-    # Faixas de idade TikTok
-    age_map = {
-        13: 'AGE_13_17', 18: 'AGE_18_24', 25: 'AGE_25_34',
-        35: 'AGE_35_44', 45: 'AGE_45_54', 55: 'AGE_55_100'
-    }
-    age_groups = []
-    for age_val, age_label in age_map.items():
-        if idade_min <= age_val <= idade_max:
-            age_groups.append(age_label)
-    if not age_groups:
-        age_groups = ['AGE_18_24', 'AGE_25_34', 'AGE_35_44']
+  const r = await api('POST', '/api/criar-campanhas', payload);
+  if (!r.ok) return alert('Erro: ' + r.error);
 
-    total   = len(adv_ids)
-    job_id  = str(uuid.uuid4())[:8]
-    running_jobs[job_id] = {
-        'logs': [], 'stop': False, 'status': 'running',
-        'total': total, 'done': 0, 'sucesso': 0, 'falha': 0
-    }
+  activeJobCamp = r.job_id;
+  logOffsetCamp = 0;
+  document.getElementById('btn-criar-camp').disabled = true;
+  document.getElementById('btn-stop-camp').style.display = '';
+  document.getElementById('camp-progress').style.display = '';
+  document.getElementById('camp-live-dot').style.background = 'var(--red)';
+  document.getElementById('log-camp').innerHTML = '';
 
-    jobs = get_jobs()
-    jobs.append({
-        'id': job_id, 'tipo': 'criar_campanhas', 'bc_id': bc_id,
-        'objetivo': objetivo, 'criado_em': datetime.now().isoformat(), 'status': 'running'
-    })
-    save_jobs(jobs)
+  logPollCamp = setInterval(() => pollJob('camp'), 1500);
+}
 
-    def run():
-        add_log(job_id, f'Iniciando campanhas em {total} contas — objetivo: {objetivo}', 'info')
+// ══════════════════════════════════════════════════════
+// DASHBOARD & JOBS
+// ══════════════════════════════════════════════════════
+async function loadStats() {
+  const r = await api('GET', '/api/stats');
+  document.getElementById('d-bcs').innerText        = r.total_bcs;
+  document.getElementById('d-conectados').innerText  = r.bcs_conectados;
+  document.getElementById('d-contas').innerText      = r.total_contas;
+  document.getElementById('d-suc').innerText         = r.camp_sucesso;
+  document.getElementById('d-fal').innerText         = r.camp_falha;
+  document.getElementById('d-run').innerText         = r.rodando;
+  document.getElementById('tp-bcs').innerText        = r.total_bcs;
+  document.getElementById('tp-contas').innerText     = r.total_contas;
+  if (r.rodando > 0) {
+    document.getElementById('tp-running-pill').style.display = '';
+    document.getElementById('tp-running').innerText = r.rodando;
+  } else {
+    document.getElementById('tp-running-pill').style.display = 'none';
+  }
+  // Jobs recentes no dash
+  loadRecentJobs();
+}
 
-        for idx, adv_id in enumerate(adv_ids):
-            if running_jobs[job_id]['stop']:
-                add_log(job_id, 'Parado pelo usuário.', 'warn')
-                break
+async function loadJobs() {
+  const jobs = await api('GET', '/api/jobs');
+  const tbody = document.getElementById('jobs-tbody');
+  if (!jobs.length) {
+    tbody.innerHTML = '<tr><td colspan="8"><div class="empty"><div class="empty-icon">📋</div><div class="empty-text">Nenhum job ainda</div></div></td></tr>';
+    return;
+  }
+  tbody.innerHTML = [...jobs].reverse().map(j => {
+    const badge = j.status === 'done'
+      ? '<span class="badge badge-ok">Concluído</span>'
+      : '<span class="badge badge-run">Rodando</span>';
+    return `<tr>
+      <td class="mono">${j.id}</td>
+      <td>${j.tipo === 'criar_campanhas' ? '📣 Campanhas' : '👤 Contas'}</td>
+      <td class="mono">${j.bc_id}</td>
+      <td>${badge}</td>
+      <td style="color:var(--green);font-family:var(--mono)">${j.sucesso ?? '—'}</td>
+      <td style="color:var(--red);font-family:var(--mono)">${j.falha ?? '—'}</td>
+      <td style="color:var(--text3);font-size:11px">${j.criado_em?.slice(0,16) || '—'}</td>
+      <td><button class="btn btn-ghost btn-sm" onclick="verLogJob('${j.id}')">📋 Log</button></td>
+    </tr>`;
+  }).join('');
+}
 
-            add_log(job_id, f'[{idx+1}/{total}] Conta {adv_id}...')
-            try:
-                ts = datetime.now().strftime('%Y%m%d%H%M%S')
+async function loadRecentJobs() {
+  const jobs = await api('GET', '/api/jobs');
+  const wrap = document.getElementById('dash-jobs-wrap');
+  const recentes = [...jobs].reverse().slice(0, 5);
+  if (!recentes.length) {
+    wrap.innerHTML = '<div class="empty"><div class="empty-icon">⚡</div><div class="empty-text">Nenhum job iniciado ainda</div></div>';
+    return;
+  }
+  wrap.innerHTML = `<table><thead><tr><th>Job</th><th>Tipo</th><th>Status</th><th>Sucesso</th><th>Falha</th><th>Data</th></tr></thead><tbody>
+    ${recentes.map(j => `<tr>
+      <td class="mono">${j.id}</td>
+      <td>${j.tipo === 'criar_campanhas' ? '📣 Campanhas' : '👤 Contas'}</td>
+      <td>${j.status === 'done' ? '<span class="badge badge-ok">OK</span>' : '<span class="badge badge-run">Rodando</span>'}</td>
+      <td style="color:var(--green)">${j.sucesso ?? '—'}</td>
+      <td style="color:var(--red)">${j.falha ?? '—'}</td>
+      <td style="color:var(--text3);font-size:11px">${j.criado_em?.slice(0,16)||'—'}</td>
+    </tr>`).join('')}
+  </tbody></table>`;
+}
 
-                # ── 1. Criar Campanha ────────────────────────────────
-                if cbo_on:
-                    # CBO ativado: orçamento na campanha, TikTok distribui entre ad groups
-                    camp_payload = {
-                        'advertiser_id'    : adv_id,
-                        'campaign_name'    : f"{campaign_name}_{ts}",
-                        'objective_type'   : obj_cfg['objective_type'],
-                        'budget_optimize_on': True,
-                        'budget_mode'      : 'BUDGET_MODE_DAY',
-                        'budget'           : budget,
-                        'campaign_type'    : 'REGULAR_CAMPAIGN',
-                        'special_industries': [],
-                    }
-                else:
-                    # CBO desativado: campanha ilimitada, orçamento fica no ad group
-                    camp_payload = {
-                        'advertiser_id'    : adv_id,
-                        'campaign_name'    : f"{campaign_name}_{ts}",
-                        'objective_type'   : obj_cfg['objective_type'],
-                        'budget_mode'      : 'BUDGET_MODE_INFINITE',
-                        'campaign_type'    : 'REGULAR_CAMPAIGN',
-                        'special_industries': [],
-                    }
+async function verLogJob(jobId) {
+  document.getElementById('modal-job-id').innerText = jobId;
+  const r = await api('GET', `/api/job/${jobId}/logs`);
+  const body = document.getElementById('modal-log-body');
+  body.innerHTML = r.logs.map(l =>
+    `<div class="ll"><span class="lt">${l.ts}</span><span class="lm ${l.level}">${escHtml(l.msg)}</span></div>`
+  ).join('') || '<div class="ll"><span class="lm info">Sem logs</span></div>';
+  body.scrollTop = body.scrollHeight;
+  openModal('modal-job-log');
+}
 
-                r_camp = tiktok_post('campaign/create', token, camp_payload)
-                if r_camp.get('code') != 0:
-                    raise Exception(f"Campanha: {r_camp.get('message', str(r_camp))}")
+// ══════════════════════════════════════════════════════
+// MODAL HELPERS
+// ══════════════════════════════════════════════════════
+function openModal(id) { document.getElementById(id).classList.add('open') }
+function closeModal(id) { document.getElementById(id).classList.remove('open') }
+document.querySelectorAll('.overlay').forEach(o => {
+  o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open') });
+});
 
-                camp_id = r_camp['data']['campaign_id']
-                add_log(job_id, f'  ✓ Campanha criada: {camp_id}', 'success')
+// ── CBO Toggle ──────────────────────────────────────
+window._cboAtivo = false;
+function toggleCBO() {
+  window._cboAtivo = !window._cboAtivo;
+  const track = document.getElementById('cbo-track');
+  const thumb = document.getElementById('cbo-thumb');
+  const label = document.getElementById('cbo-label');
+  if (window._cboAtivo) {
+    track.style.background = 'rgba(254,44,85,.3)';
+    track.style.borderColor = 'rgba(254,44,85,.5)';
+    thumb.style.background = 'var(--red)';
+    thumb.style.left = '23px';
+    label.style.color = 'var(--red)';
+    label.innerText = 'Ativado — TikTok otimiza o orçamento';
+  } else {
+    track.style.background = 'var(--bg3)';
+    track.style.borderColor = 'var(--border2)';
+    thumb.style.background = 'var(--text3)';
+    thumb.style.left = '3px';
+    label.style.color = 'var(--text3)';
+    label.innerText = 'Desativado — orçamento por conjunto';
+  }
+}
 
-                # ── 2. Criar Ad Group(s) ─────────────────────────────
-                adgroup_ids = []
-                for ag_i in range(num_adgroups):
-                    ag_name = adgroup_name if num_adgroups == 1 else f"{adgroup_name}_{ag_i+1}"
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
 
-                    ag_payload = {
-                        'advertiser_id'    : adv_id,
-                        'campaign_id'      : camp_id,
-                        'adgroup_name'     : ag_name,
-                        'placement_type'   : 'PLACEMENT_TYPE_NORMAL',
-                        'placements'       : ['PLACEMENT_TIKTOK'],
-                        'location_ids'     : get_location_ids(paises),
-                        'age_groups'       : age_groups,
-                        'gender'           : gender,
-                        'budget_mode'      : budget_mode,
-                        'budget'           : budget,
-                        'schedule_type'    : 'SCHEDULE_FROM_NOW',
-                        'schedule_start_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                        'optimization_goal': obj_cfg['optimization_goal'],
-                        'billing_event'    : obj_cfg['billing_event'],
-                        'bid_type'         : 'BID_TYPE_NO_BID',
-                        'pacing'           : 'PACING_MODE_SMOOTH',
-                        'operation_status' : 'ENABLE',
-                    }
+// ══════════════════════════════════════════════════════
+// OAUTH SUCCESS / ERROR (vindo do redirect)
+// ══════════════════════════════════════════════════════
+const oauthSuc = sessionStorage.getItem('oauth_success');
+const oauthErr = sessionStorage.getItem('oauth_error');
+if (oauthSuc) {
+  sessionStorage.removeItem('oauth_success');
+  setTimeout(() => alert(`✓ OAuth bem-sucedido! ${oauthSuc} contas sincronizadas.`), 500);
+}
+if (oauthErr) {
+  sessionStorage.removeItem('oauth_error');
+  setTimeout(() => alert('⚠ Erro OAuth: ' + oauthErr), 500);
+}
 
-                    # Pixel — só para CONVERSIONS
-                    if objetivo == 'CONVERSIONS' and pixel_id:
-                        ag_payload['pixel_id']           = pixel_id
-                        ag_payload['optimization_event'] = optimization
-
-                    r_ag = tiktok_post('adgroup/create', token, ag_payload)
-                    if r_ag.get('code') != 0:
-                        add_log(job_id, f'  ✗ Ad Group {ag_i+1}: {r_ag.get("message", str(r_ag))}', 'error')
-                        continue
-
-                    ag_id = r_ag['data']['adgroup_id']
-                    adgroup_ids.append(ag_id)
-                    add_log(job_id, f'  ✓ Ad Group {ag_i+1}: {ag_id}', 'success')
-                    time.sleep(0.5)
-
-                if not adgroup_ids:
-                    raise Exception("Nenhum Ad Group criado com sucesso")
-
-                # ── 3. Resolver item_id e identity a partir do auth_code (Spark Ad) ──
-                resolved_identity_id   = identity_id
-                resolved_identity_type = 'AUTH_CODE'
-                resolved_item_id       = ''
-
-                if not post_code:
-                    add_log(job_id, '  ⚠ Sem código de post — ad será pulado', 'warn')
-                else:
-                    # Tenta /tt_video/info/ primeiro (mais direto)
-                    safe_code = post_code.replace('+', '%2B')
-                    r_info = tiktok_get('tt_video/info', token, adv_id,
-                                        {'auth_code': safe_code})
-                    if r_info.get('code') == 0:
-                        data_info = r_info.get('data', {})
-                        resolved_item_id = str(data_info.get('item_info', {}).get('item_id', ''))
-                        if not resolved_identity_id:
-                            resolved_identity_id   = data_info.get('user_info', {}).get('identity_id', '')
-                            resolved_identity_type = data_info.get('user_info', {}).get('identity_type', 'AUTH_CODE')
-                        add_log(job_id,
-                            f'  ✓ Post info: item_id={resolved_item_id} | identity={resolved_identity_id}', 'info')
-                    else:
-                        # Fallback: busca via /tt_video/list/ e filtra pelo auth_code
-                        add_log(job_id, '  ↻ Buscando post via lista (fallback)...', 'info')
-                        found = False
-                        page  = 1
-                        while not found:
-                            r_list = tiktok_get('tt_video/list', token, adv_id,
-                                                {'page': page, 'page_size': 50})
-                            add_log(job_id, f'  [debug] tt_video/list code={r_list.get("code")} msg={r_list.get("message", "")[:80]}', 'info')
-                            if r_list.get('code') != 0:
-                                add_log(job_id,
-                                    f'  ✗ Erro ao listar posts: {r_list.get("message", str(r_list))}', 'error')
-                                break
-                            posts      = r_list.get('data', {}).get('list', [])
-                            page_info  = r_list.get('data', {}).get('page_info', {})
-                            for post in posts:
-                                item_info = post.get('item_info', {})
-                                if item_info.get('auth_code', '') == post_code:
-                                    resolved_item_id = str(item_info.get('item_id', ''))
-                                    if not resolved_identity_id:
-                                        resolved_identity_id   = post.get('user_info', {}).get('identity_id', '')
-                                        resolved_identity_type = post.get('user_info', {}).get('identity_type', 'AUTH_CODE')
-                                    add_log(job_id,
-                                        f'  ✓ Post encontrado: item_id={resolved_item_id} | identity={resolved_identity_id}', 'info')
-                                    found = True
-                                    break
-                            if found or page >= page_info.get('total_page', 1):
-                                break
-                            page += 1
-                        if not found:
-                            add_log(job_id, '  ✗ Post não encontrado na lista — verifique o auth_code', 'error')
-
-                # fallback: busca identity na conta se ainda não tiver
-                if not resolved_identity_id:
-                    for id_type in ['TT_USER', 'AUTH_CODE', 'BC_AUTH_TT']:
-                        r_ident = tiktok_get('identity/get', token, adv_id,
-                                             {'identity_type': id_type})
-                        if r_ident.get('code') == 0:
-                            ident_list = r_ident.get('data', {}).get('identity_list', [])
-                            available  = [i for i in ident_list if i.get('available_status') == 'AVAILABLE']
-                            if available:
-                                resolved_identity_id   = available[0].get('identity_id', '')
-                                resolved_identity_type = id_type
-                                add_log(job_id,
-                                    f'  ✓ Identity [{id_type}]: {resolved_identity_id}', 'info')
-                                break
-                    if not resolved_identity_id:
-                        add_log(job_id, '  ⚠ Nenhum identity encontrado para esta conta', 'warn')
-
-                # ── 4. Criar Ad (Spark Ad) ───────────────────────────────
-                for ag_id in adgroup_ids:
-                    if not post_code:
-                        add_log(job_id, '  ⚠ Ad pulado: sem código de post', 'warn')
-                        break
-                    if not resolved_item_id:
-                        add_log(job_id, '  ⚠ Ad pulado: item_id não resolvido (verifique o auth_code)', 'warn')
-                        break
-                    if not resolved_identity_id:
-                        add_log(job_id, '  ⚠ Ad pulado: sem identity_id', 'warn')
-                        break
-
-                    ad_name = f"Ad_{datetime.now().strftime('%Y%m%d%H%M%S')}"
-
-                    creative = {
-                        'ad_name'        : ad_name,
-                        'ad_format'      : 'SINGLE_VIDEO',
-                        'identity_type'  : resolved_identity_type,
-                        'identity_id'    : resolved_identity_id,
-                        'tiktok_item_id' : resolved_item_id,   # ✓ ID numérico do post
-                        'call_to_action' : cta,
-                    }
-
-                    if product_url:
-                        creative['landing_page_url'] = product_url
-
-                    ad_payload = {
-                        'advertiser_id': adv_id,
-                        'adgroup_id'   : ag_id,
-                        'creatives'    : [creative],
-                    }
-
-                    r_ad = tiktok_post('ad/create', token, ad_payload)
-                    if r_ad.get('code') != 0:
-                        add_log(job_id, f'  ✗ Ad: {r_ad.get("message", str(r_ad))}', 'error')
-                    else:
-                        ad_ids = r_ad.get('data', {}).get('ad_ids', [])
-                        add_log(job_id, f'  ✓ Ad criado: {ad_ids}', 'success')
-                    time.sleep(0.3)
-
-                running_jobs[job_id]['sucesso'] += 1
-                add_log(job_id, f'[{idx+1}/{total}] ✓ Conta {adv_id} concluída!', 'success')
-
-            except Exception as e:
-                running_jobs[job_id]['falha'] += 1
-                add_log(job_id, f'[{idx+1}/{total}] ✗ Erro conta {adv_id}: {str(e)[:200]}', 'error')
-
-            running_jobs[job_id]['done'] = idx + 1
-            time.sleep(0.5)
-
-        running_jobs[job_id]['status'] = 'done'
-        s = running_jobs[job_id]['sucesso']
-        f = running_jobs[job_id]['falha']
-        add_log(job_id, f'✓ Concluído: {s} sucessos, {f} falhas', 'success' if f == 0 else 'warn')
-
-        jobs = get_jobs()
-        for j in jobs:
-            if j['id'] == job_id:
-                j['status'] = 'done'
-                j['sucesso'] = s
-                j['falha']   = f
-                break
-        save_jobs(jobs)
-
-    t = threading.Thread(target=run, daemon=True)
-    running_jobs[job_id]['thread'] = t
-    t.start()
-    return jsonify({'ok': True, 'job_id': job_id, 'total_contas': total})
-
-# ── Job control ────────────────────────────────────────────────────────
-@app.route('/api/job/<job_id>/logs')
-def job_logs(job_id):
-    offset = int(request.args.get('offset', 0))
-    if job_id in running_jobs:
-        logs    = running_jobs[job_id]['logs']
-        status  = running_jobs[job_id]['status']
-        done    = running_jobs[job_id]['done']
-        total   = running_jobs[job_id]['total']
-        sucesso = running_jobs[job_id]['sucesso']
-        falha   = running_jobs[job_id]['falha']
-    else:
-        log_file = os.path.join(LOGS_DIR, f'{job_id}.jsonl')
-        logs = []
-        if os.path.exists(log_file):
-            with open(log_file, 'r', encoding='utf-8') as f:
-                for line in f:
-                    try: logs.append(json.loads(line))
-                    except: pass
-        status = 'done'; done = 0; total = 0; sucesso = 0; falha = 0
-    return jsonify({
-        'logs'      : logs[offset:],
-        'total_logs': len(logs),
-        'status'    : status,
-        'done'      : done,
-        'total'     : total,
-        'sucesso'   : sucesso,
-        'falha'     : falha,
-    })
-
-@app.route('/api/job/<job_id>/stop', methods=['POST'])
-def job_stop(job_id):
-    if job_id in running_jobs:
-        running_jobs[job_id]['stop'] = True
-        return jsonify({'ok': True})
-    return jsonify({'ok': False, 'error': 'Job não encontrado'})
-
-@app.route('/api/jobs')
-def list_jobs():
-    return jsonify(get_jobs()[-50:])
-
-# ── Dashboard stats ────────────────────────────────────────────────────
-@app.route('/api/stats')
-def api_stats():
-    bcs    = get_bcs()
-    tokens = get_tokens()
-    jobs   = get_jobs()
-    contas_total = sum(len(b.get('advertiser_ids', [])) for b in bcs)
-    camp_jobs    = [j for j in jobs if j.get('tipo') == 'criar_campanhas']
-    camp_suc     = sum(j.get('sucesso', 0) for j in camp_jobs)
-    camp_fal     = sum(j.get('falha', 0) for j in camp_jobs)
-    rodando      = len([j for j in running_jobs.values() if j.get('status') == 'running'])
-    return jsonify({
-        'total_bcs'     : len(bcs),
-        'bcs_conectados': sum(1 for b in bcs if str(b['id']) in tokens),
-        'total_contas'  : contas_total,
-        'camp_sucesso'  : camp_suc,
-        'camp_falha'    : camp_fal,
-        'rodando'       : rodando,
-    })
-
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+// ══════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════
+(async () => {
+  await loadBCs();
+  await loadStats();
+  setInterval(loadStats, 15000);
+})();
+</script>
+</body>
+</html>
