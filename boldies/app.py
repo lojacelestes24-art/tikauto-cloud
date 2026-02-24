@@ -510,7 +510,7 @@ def criar_campanhas():
 
                 # ── 3. Resolver item_id e identity a partir do auth_code (Spark Ad) ──
                 resolved_identity_id   = identity_id
-                resolved_identity_type = 'TT_USER'
+                resolved_identity_type = 'AUTH_CODE'
                 resolved_item_id       = item_id_input  # usa item_id manual se fornecido
 
                 if resolved_item_id:
