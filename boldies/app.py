@@ -581,9 +581,6 @@ def criar_campanhas():
 
                 # ── 4. Criar Ad (Spark Ad) ───────────────────────────────
                 for ag_id in adgroup_ids:
-                    if not post_code:
-                        add_log(job_id, '  ⚠ Ad pulado: sem código de post', 'warn')
-                        break
                     if not resolved_item_id:
                         add_log(job_id, '  ⚠ Ad pulado: item_id não resolvido (verifique o auth_code)', 'warn')
                         break
