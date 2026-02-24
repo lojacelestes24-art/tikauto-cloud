@@ -125,7 +125,6 @@ def get_advertiser_info(token, advertiser_id):
             return info_list[0]
     return {}
 
-# ── FIX: get_active_campaigns com tratamento de erro robusto ───────────
 def get_active_campaigns(token, advertiser_id):
     try:
         r = tiktok_get('campaign/get', token, advertiser_id,
@@ -312,56 +311,102 @@ def api_get_advertisers(bc_id):
     save_bcs(bcs)
     return jsonify({'ok': True, 'advertiser_ids': advs, 'total': len(advs)})
 
-# ── FIX: campaigns-overview com try/except em cada adv_id ─────────────
-@app.route('/api/bcs/<int:bc_id>/campaigns-overview', methods=['GET'])
-def api_campaigns_overview(bc_id):
-    try:
-        token = get_token_for_bc(bc_id)
-        if not token:
-            return jsonify({'ok': False, 'error': 'Sem token. Conecte o BC via OAuth.'})
-        bcs = get_bcs()
-        bc  = next((b for b in bcs if b['id'] == bc_id), None)
-        if not bc:
-            return jsonify({'ok': False, 'error': 'BC nao encontrado'})
+# ── NOVO: campaigns-overview assíncrono ────────────────────────────────
+# Inicia um job em background e retorna job_id imediatamente
+@app.route('/api/bcs/<int:bc_id>/campaigns-overview', methods=['POST'])
+def api_campaigns_overview_start(bc_id):
+    token = get_token_for_bc(bc_id)
+    if not token:
+        return jsonify({'ok': False, 'error': 'Sem token. Conecte o BC via OAuth.'})
+    bcs = get_bcs()
+    bc  = next((b for b in bcs if b['id'] == bc_id), None)
+    if not bc:
+        return jsonify({'ok': False, 'error': 'BC nao encontrado'})
 
+    adv_ids = bc.get('advertiser_ids', [])
+    if not adv_ids:
+        return jsonify({'ok': False, 'error': 'BC sem advertiser IDs. Vá em Business Centers e sincronize as contas.'})
+
+    job_id = f"ov_{str(uuid.uuid4())[:8]}"
+    running_jobs[job_id] = {
+        'logs': [], 'stop': False, 'status': 'running',
+        'total': len(adv_ids), 'done': 0, 'sucesso': 0, 'falha': 0,
+        'campaigns': []  # acumula resultados
+    }
+
+    def run():
         accounts = bc.get('accounts', {})
-        adv_ids  = bc.get('advertiser_ids', [])
+        result   = []
+        add_log(job_id, f'Buscando campanhas em {len(adv_ids)} contas...', 'info')
 
-        if not adv_ids:
-            return jsonify({'ok': False, 'error': 'BC sem advertiser IDs. Vá em Business Centers e atualize as contas.'})
-
-        result = []
-        errors = []
-
-        for adv_id in adv_ids:
+        for idx, adv_id in enumerate(adv_ids):
+            if running_jobs[job_id]['stop']:
+                break
             try:
                 campaigns = get_active_campaigns(token, adv_id)
-                acc_name  = accounts.get(str(adv_id), {}).get('name', adv_id)
-                for camp in campaigns:
-                    result.append({
-                        'advertiser_id'  : str(adv_id),
-                        'advertiser_name': acc_name,
-                        'campaign_id'    : str(camp.get('campaign_id', '')),
-                        'campaign_name'  : camp.get('campaign_name', ''),
-                        'status'         : camp.get('primary_status', ''),
-                        'budget'         : camp.get('budget', 0),
-                        'objective'      : camp.get('objective_type', ''),
-                    })
+                acc_name  = accounts.get(str(adv_id), {}).get('name', str(adv_id))
+                if campaigns:
+                    for camp in campaigns:
+                        result.append({
+                            'advertiser_id'  : str(adv_id),
+                            'advertiser_name': acc_name,
+                            'campaign_id'    : str(camp.get('campaign_id', '')),
+                            'campaign_name'  : camp.get('campaign_name', ''),
+                            'status'         : camp.get('primary_status', ''),
+                            'budget'         : camp.get('budget', 0),
+                            'objective'      : camp.get('objective_type', ''),
+                        })
+                    add_log(job_id, f'[{idx+1}/{len(adv_ids)}] {acc_name}: {len(campaigns)} ativas', 'success')
+                    running_jobs[job_id]['sucesso'] += 1
+                else:
+                    add_log(job_id, f'[{idx+1}/{len(adv_ids)}] {acc_name}: sem campanhas', 'info')
+
+                # atualiza cache no BC
                 if str(adv_id) in accounts:
                     accounts[str(adv_id)]['campaigns_active'] = len(campaigns)
+
             except Exception as e:
-                err_msg = f"Erro na conta {adv_id}: {str(e)[:100]}"
-                print(err_msg)
-                errors.append(err_msg)
-                continue
+                add_log(job_id, f'[{idx+1}/{len(adv_ids)}] Erro conta {adv_id}: {str(e)[:80]}', 'error')
+                running_jobs[job_id]['falha'] += 1
 
-        bc['accounts'] = accounts
-        save_bcs(bcs)
-        return jsonify({'ok': True, 'campaigns': result, 'total': len(result), 'errors': errors})
+            running_jobs[job_id]['done'] = idx + 1
+            running_jobs[job_id]['campaigns'] = result[:]  # snapshot parcial disponível para o frontend
 
-    except Exception as e:
-        print(f"api_campaigns_overview exception: {e}")
-        return jsonify({'ok': False, 'error': f'Erro interno: {str(e)[:200]}'})
+        # salva cache atualizado
+        try:
+            fresh_bcs = get_bcs()
+            for b in fresh_bcs:
+                if b['id'] == bc_id:
+                    b['accounts'] = accounts
+                    break
+            save_bcs(fresh_bcs)
+        except: pass
+
+        running_jobs[job_id]['status'] = 'done'
+        running_jobs[job_id]['campaigns'] = result
+        total_camp = len(result)
+        add_log(job_id, f'Concluído — {total_camp} campanhas ativas encontradas', 'success' if total_camp > 0 else 'warn')
+
+    threading.Thread(target=run, daemon=True).start()
+    return jsonify({'ok': True, 'job_id': job_id, 'total_contas': len(adv_ids)})
+
+# Polling: retorna logs + campanhas encontradas até agora
+@app.route('/api/overview-job/<job_id>')
+def api_overview_job_status(job_id):
+    offset = int(request.args.get('offset', 0))
+    if job_id not in running_jobs:
+        return jsonify({'ok': False, 'error': 'Job não encontrado'})
+    j = running_jobs[job_id]
+    return jsonify({
+        'ok'        : True,
+        'status'    : j['status'],
+        'done'      : j['done'],
+        'total'     : j['total'],
+        'sucesso'   : j['sucesso'],
+        'falha'     : j['falha'],
+        'logs'      : j['logs'][offset:],
+        'campaigns' : j['campaigns'],
+    })
 
 @app.route('/api/bcs/<int:bc_id>/disable-campaign', methods=['POST'])
 def api_disable_campaign(bc_id):
