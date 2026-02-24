@@ -355,38 +355,63 @@ def api_campaigns_overview_start(bc_id):
     }
 
     def run():
+        from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FuturesTimeout
         accounts = bc.get('accounts', {})
         result   = []
-        add_log(job_id, f'Buscando campanhas ativas em {len(adv_ids)} contas...', 'info')
-        for idx, adv_id in enumerate(adv_ids):
-            if running_jobs[job_id]['stop']:
-                break
+        result_lock = threading.Lock()
+        add_log(job_id, f'Buscando campanhas ativas em {len(adv_ids)} contas (paralelo)...', 'info')
+
+        def fetch_one(idx_adv):
+            idx, adv_id = idx_adv
+            acc_name = accounts.get(str(adv_id), {}).get('name', str(adv_id))
             try:
                 campaigns = get_active_campaigns(token, adv_id)
-                acc_name  = accounts.get(str(adv_id), {}).get('name', str(adv_id))
-                if campaigns:
-                    for camp in campaigns:
-                        result.append({
-                            'advertiser_id'  : str(adv_id),
-                            'advertiser_name': acc_name,
-                            'campaign_id'    : str(camp.get('campaign_id', '')),
-                            'campaign_name'  : camp.get('campaign_name', ''),
-                            'status'         : camp.get('operation_status', 'ENABLE'),
-                            'budget'         : camp.get('budget', 0),
-                            'objective'      : camp.get('objective_type', ''),
-                        })
-                    add_log(job_id, f'[{idx+1}/{len(adv_ids)}] {acc_name}: {len(campaigns)} ativas', 'success')
-                    running_jobs[job_id]['sucesso'] += 1
-                else:
-                    add_log(job_id, f'[{idx+1}/{len(adv_ids)}] {acc_name}: sem campanhas ativas', 'info')
-                if str(adv_id) in accounts:
-                    accounts[str(adv_id)]['campaigns_active'] = len(campaigns)
+                return idx, adv_id, acc_name, campaigns, None
             except Exception as e:
-                add_log(job_id, f'[{idx+1}/{len(adv_ids)}] Erro conta {adv_id}: {str(e)[:80]}', 'error')
-                running_jobs[job_id]['falha'] += 1
-            running_jobs[job_id]['done'] = idx + 1
-            running_jobs[job_id]['campaigns'] = result[:]
-            time.sleep(0.2)
+                return idx, adv_id, acc_name, [], str(e)[:80]
+
+        done_count = [0]
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = {executor.submit(fetch_one, (idx, adv_id)): adv_id
+                       for idx, adv_id in enumerate(adv_ids)}
+            for future in as_completed(futures, timeout=600):
+                if running_jobs[job_id]['stop']:
+                    executor.shutdown(wait=False)
+                    break
+                try:
+                    idx, adv_id, acc_name, campaigns, err = future.result(timeout=12)
+                except Exception as e:
+                    add_log(job_id, f'Conta timeout/erro: {str(e)[:60]}', 'error')
+                    running_jobs[job_id]['falha'] += 1
+                    done_count[0] += 1
+                    running_jobs[job_id]['done'] = done_count[0]
+                    continue
+
+                if err:
+                    add_log(job_id, f'Erro conta {adv_id}: {err}', 'error')
+                    running_jobs[job_id]['falha'] += 1
+                elif campaigns:
+                    with result_lock:
+                        for camp in campaigns:
+                            result.append({
+                                'advertiser_id'  : str(adv_id),
+                                'advertiser_name': acc_name,
+                                'campaign_id'    : str(camp.get('campaign_id', '')),
+                                'campaign_name'  : camp.get('campaign_name', ''),
+                                'status'         : camp.get('operation_status', 'ENABLE'),
+                                'budget'         : camp.get('budget', 0),
+                                'objective'      : camp.get('objective_type', ''),
+                            })
+                    add_log(job_id, f'{acc_name}: {len(campaigns)} ativas', 'success')
+                    running_jobs[job_id]['sucesso'] += 1
+                    if str(adv_id) in accounts:
+                        accounts[str(adv_id)]['campaigns_active'] = len(campaigns)
+                else:
+                    add_log(job_id, f'{acc_name}: sem campanhas ativas', 'info')
+
+                done_count[0] += 1
+                running_jobs[job_id]['done'] = done_count[0]
+                running_jobs[job_id]['campaigns'] = result[:]
 
         try:
             fresh_bcs = get_bcs()
