@@ -167,6 +167,10 @@ def get_location_ids(paises):
 def index():
     return render_template('index.html')
 
+@app.route('/api/version')
+def version():
+    return jsonify({'version': 'v2-debug-241'})
+
 # ── OAuth ──────────────────────────────────────────────────────────────
 @app.route('/oauth/url')
 def oauth_url():
