@@ -127,8 +127,13 @@ def get_advertiser_info(token, advertiser_id):
 
 def get_active_campaigns(token, advertiser_id):
     try:
-        r = tiktok_get('campaign/get', token, advertiser_id,
-                       {'primary_status': 'STATUS_ACTIVE', 'page_size': 100})
+        # Filtra diretamente por status ativo usando o filtering da API
+        import json as _json
+        filtering = _json.dumps({"status": "CAMPAIGN_STATUS_ENABLE"})
+        r = tiktok_get('campaign/get', token, advertiser_id, {
+            'page_size': 100,
+            'filtering': filtering,
+        })
         if r.get('code') == 0:
             return r.get('data', {}).get('list', [])
         print(f"get_active_campaigns erro adv {advertiser_id}: code={r.get('code')} msg={r.get('message')}")
@@ -352,7 +357,7 @@ def api_campaigns_overview_start(bc_id):
                             'advertiser_name': acc_name,
                             'campaign_id'    : str(camp.get('campaign_id', '')),
                             'campaign_name'  : camp.get('campaign_name', ''),
-                            'status'         : camp.get('primary_status', ''),
+                            'status'         : camp.get('status', 'CAMPAIGN_STATUS_ENABLE'),
                             'budget'         : camp.get('budget', 0),
                             'objective'      : camp.get('objective_type', ''),
                         })
