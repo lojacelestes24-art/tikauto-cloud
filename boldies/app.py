@@ -592,12 +592,13 @@ def criar_campanhas():
                     ad_name = f"Ad_{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
                     creative = {
-                        'ad_name'        : ad_name,
-                        'ad_format'      : post_type,
-                        'identity_type'  : resolved_identity_type,
-                        'identity_id'    : resolved_identity_id,
-                        'tiktok_item_id' : resolved_item_id,   # ✓ ID numérico do post
-                        'call_to_action' : cta,
+                        'ad_name'                   : ad_name,
+                        'ad_format'                 : post_type,
+                        'identity_type'             : 'BC_AUTH_TT',
+                        'identity_id'               : resolved_identity_id,
+                        'identity_authorized_bc_id' : '7607905792628621313',
+                        'tiktok_item_id'            : resolved_item_id,
+                        'call_to_action'            : cta,
                     }
 
                     if product_url:
