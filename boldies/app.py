@@ -433,13 +433,14 @@ def criar_campanhas():
                 ts = datetime.now().strftime('%Y%m%d%H%M%S')
 
                 # ── 1. Criar Campanha ────────────────────────────────
+                # CBO desativado: campanha usa BUDGET_MODE_INFINITE (sem orçamento)
+                # O orçamento fica apenas no Ad Group
                 camp_payload = {
-                    'advertiser_id'   : adv_id,
-                    'campaign_name'   : f"{campaign_name}_{ts}",
-                    'objective_type'  : obj_cfg['objective_type'],
-                    'budget_mode'     : budget_mode,
-                    'budget'          : budget,
-                    'campaign_type'   : 'REGULAR_CAMPAIGN',
+                    'advertiser_id'    : adv_id,
+                    'campaign_name'    : f"{campaign_name}_{ts}",
+                    'objective_type'   : obj_cfg['objective_type'],
+                    'budget_mode'      : 'BUDGET_MODE_INFINITE',
+                    'campaign_type'    : 'REGULAR_CAMPAIGN',
                     'special_industries': [],
                 }
 
@@ -493,31 +494,65 @@ def criar_campanhas():
                 if not adgroup_ids:
                     raise Exception("Nenhum Ad Group criado com sucesso")
 
-                # ── 3. Criar Ad (criativo) ───────────────────────────
+                # ── 3. Buscar identity automaticamente (Spark Ad via Pull) ──
+                # Para Spark Ad Pull: identity_type deve ser AUTH_CODE ou BC_AUTH_TT
+                # O tiktok_item_id é o código do post (item_id do vídeo orgânico)
+                resolved_identity_id   = identity_id
+                resolved_identity_type = 'AUTH_CODE'
+
+                if not resolved_identity_id:
+                    # Tenta AUTH_CODE primeiro (post autorizado)
+                    for id_type in ['AUTH_CODE', 'TT_USER', 'BC_AUTH_TT']:
+                        r_ident = tiktok_get('identity/get', token, adv_id,
+                                             {'identity_type': id_type})
+                        if r_ident.get('code') == 0:
+                            ident_list = r_ident.get('data', {}).get('identity_list', [])
+                            if ident_list:
+                                resolved_identity_id   = ident_list[0].get('identity_id', '')
+                                resolved_identity_type = id_type
+                                add_log(job_id,
+                                    f'  ✓ Identity [{id_type}]: {resolved_identity_id}', 'info')
+                                break
+                    if not resolved_identity_id:
+                        add_log(job_id, '  ⚠ Nenhum identity encontrado para esta conta', 'warn')
+
+                # ── 4. Criar Ad (Spark Ad via Pull) ─────────────────────
+                # Estrutura correta v1.3: campos do criativo dentro de creatives:[{}]
                 for ag_id in adgroup_ids:
+                    if not post_code:
+                        add_log(job_id, '  ⚠ Ad pulado: sem código de post', 'warn')
+                        break
+                    if not resolved_identity_id:
+                        add_log(job_id, '  ⚠ Ad pulado: sem identity_id', 'warn')
+                        break
+
+                    ad_name = f"Ad_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+                    # Criativo para Spark Ad Pull (post orgânico existente)
+                    creative = {
+                        'ad_name'        : ad_name,
+                        'ad_format'      : 'SINGLE_VIDEO',
+                        'identity_type'  : resolved_identity_type,
+                        'identity_id'    : resolved_identity_id,
+                        'tiktok_item_id' : post_code,   # item_id do post TikTok
+                        'call_to_action' : cta,
+                    }
+
+                    if product_url:
+                        creative['landing_page_url'] = product_url
+
                     ad_payload = {
                         'advertiser_id'   : adv_id,
                         'adgroup_id'      : ag_id,
-                        'ad_name'         : f"Ad_{datetime.now().strftime('%Y%m%d%H%M%S')}",
-                        'ad_format'       : 'SINGLE_VIDEO',
-                        'call_to_action'  : cta,
-                        'operation_status': 'ENABLE',
+                        'creatives'       : [creative],
                     }
-
-                    # Spark Ad (post TikTok existente)
-                    if post_code and identity_id:
-                        ad_payload['tiktok_item_id'] = post_code
-                        ad_payload['identity_id']    = identity_id
-                        ad_payload['identity_type']  = 'CUSTOMIZED_USER'
-
-                    if product_url:
-                        ad_payload['landing_page_url'] = product_url
 
                     r_ad = tiktok_post('ad/create', token, ad_payload)
                     if r_ad.get('code') != 0:
                         add_log(job_id, f'  ✗ Ad: {r_ad.get("message", str(r_ad))}', 'error')
                     else:
-                        add_log(job_id, f'  ✓ Ad criado: {r_ad["data"]["ad_id"]}', 'success')
+                        ad_ids = r_ad.get('data', {}).get('ad_ids', [])
+                        add_log(job_id, f'  ✓ Ad criado: {ad_ids}', 'success')
                     time.sleep(0.3)
 
                 running_jobs[job_id]['sucesso'] += 1
