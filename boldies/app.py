@@ -377,6 +377,7 @@ def criar_campanhas():
     num_adgroups = int(d.get('num_adgroups', 1))
     budget       = float(d.get('budget', 50))
     budget_mode  = 'BUDGET_MODE_DAY'
+    cbo_on        = bool(d.get('budget_optimize_on', False))
     campaign_name = d.get('campaign_name', 'TikAuto')
     adgroup_name  = d.get('adgroup_name', 'AdGroup')
 
@@ -433,16 +434,28 @@ def criar_campanhas():
                 ts = datetime.now().strftime('%Y%m%d%H%M%S')
 
                 # ── 1. Criar Campanha ────────────────────────────────
-                # CBO desativado: campanha usa BUDGET_MODE_INFINITE (sem orçamento)
-                # O orçamento fica apenas no Ad Group
-                camp_payload = {
-                    'advertiser_id'    : adv_id,
-                    'campaign_name'    : f"{campaign_name}_{ts}",
-                    'objective_type'   : obj_cfg['objective_type'],
-                    'budget_mode'      : 'BUDGET_MODE_INFINITE',
-                    'campaign_type'    : 'REGULAR_CAMPAIGN',
-                    'special_industries': [],
-                }
+                if cbo_on:
+                    # CBO ativado: orçamento na campanha, TikTok distribui entre ad groups
+                    camp_payload = {
+                        'advertiser_id'    : adv_id,
+                        'campaign_name'    : f"{campaign_name}_{ts}",
+                        'objective_type'   : obj_cfg['objective_type'],
+                        'budget_optimize_on': True,
+                        'budget_mode'      : 'BUDGET_MODE_DAY',
+                        'budget'           : budget,
+                        'campaign_type'    : 'REGULAR_CAMPAIGN',
+                        'special_industries': [],
+                    }
+                else:
+                    # CBO desativado: campanha ilimitada, orçamento fica no ad group
+                    camp_payload = {
+                        'advertiser_id'    : adv_id,
+                        'campaign_name'    : f"{campaign_name}_{ts}",
+                        'objective_type'   : obj_cfg['objective_type'],
+                        'budget_mode'      : 'BUDGET_MODE_INFINITE',
+                        'campaign_type'    : 'REGULAR_CAMPAIGN',
+                        'special_industries': [],
+                    }
 
                 r_camp = tiktok_post('campaign/create', token, camp_payload)
                 if r_camp.get('code') != 0:
