@@ -155,8 +155,8 @@ LOCATION_MAP = {
 }
 
 def get_location_ids(paises):
-    ids = [LOCATION_MAP[p] for p in paises if p in LOCATION_MAP]
-    return ids if ids else [3469034]  # Brasil como fallback
+    ids = [str(LOCATION_MAP[p]) for p in paises if p in LOCATION_MAP]
+    return ids if ids else ['3469034']  # Brasil como fallback
 
 # ══════════════════════════════════════════════════════════════════════
 # ROTAS PRINCIPAIS
