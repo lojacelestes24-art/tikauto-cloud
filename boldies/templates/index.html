@@ -456,6 +456,17 @@ input[type=range]{flex:1;accent-color:var(--red)}
                 </div>
               </div>
             </div>
+            <div class="form-group" style="margin-top:14px">
+              <label>Otimização de Orçamento (CBO)</label>
+              <div style="display:flex;align-items:center;gap:12px;margin-top:6px">
+                <div id="cbo-toggle" onclick="toggleCBO()" style="position:relative;width:44px;height:24px;cursor:pointer;flex-shrink:0">
+                  <div style="position:absolute;inset:0;background:var(--bg3);border:1px solid var(--border2);border-radius:12px;transition:.2s" id="cbo-track"></div>
+                  <div style="position:absolute;left:3px;top:3px;width:16px;height:16px;background:var(--text3);border-radius:50%;transition:.2s;z-index:1" id="cbo-thumb"></div>
+                </div>
+                <span id="cbo-label" style="font-size:12px;color:var(--text3)">Desativado — orçamento por conjunto</span>
+              </div>
+              <div class="hint" style="margin-top:4px">Ativado: TikTok distribui o orçamento entre os conjuntos automaticamente</div>
+            </div>
           </div>
 
           <div class="form-card">
@@ -1009,9 +1020,12 @@ async function iniciarCriarCampanhas() {
   if (!paises.length) return alert('Selecione pelo menos um país');
   if (!advIds.length)  return alert('Selecione pelo menos uma conta');
 
+  const cboAtivo = window._cboAtivo || false;
+
   const payload = {
     bc_id          : bcId,
     objetivo,
+    budget_optimize_on: cboAtivo,
     campaign_name  : document.getElementById('camp-nome').value || 'Campanha Auto',
     budget         : parseFloat(document.getElementById('camp-budget').value) || 20,
     num_adgroups   : parseInt(document.getElementById('camp-adgroups').value) || 1,
@@ -1130,6 +1144,30 @@ function closeModal(id) { document.getElementById(id).classList.remove('open') }
 document.querySelectorAll('.overlay').forEach(o => {
   o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open') });
 });
+
+// ── CBO Toggle ──────────────────────────────────────
+window._cboAtivo = false;
+function toggleCBO() {
+  window._cboAtivo = !window._cboAtivo;
+  const track = document.getElementById('cbo-track');
+  const thumb = document.getElementById('cbo-thumb');
+  const label = document.getElementById('cbo-label');
+  if (window._cboAtivo) {
+    track.style.background = 'rgba(254,44,85,.3)';
+    track.style.borderColor = 'rgba(254,44,85,.5)';
+    thumb.style.background = 'var(--red)';
+    thumb.style.left = '23px';
+    label.style.color = 'var(--red)';
+    label.innerText = 'Ativado — TikTok otimiza o orçamento';
+  } else {
+    track.style.background = 'var(--bg3)';
+    track.style.borderColor = 'var(--border2)';
+    thumb.style.background = 'var(--text3)';
+    thumb.style.left = '3px';
+    label.style.color = 'var(--text3)';
+    label.innerText = 'Desativado — orçamento por conjunto';
+  }
+}
 
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
