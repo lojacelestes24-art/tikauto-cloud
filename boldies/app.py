@@ -620,7 +620,7 @@ def _get_opt_goal(objetivo):
         'REACH'          : 'REACH',
         'ENGAGEMENT'     : 'ENGAGEMENT',
     }
-    return MAP.get(objetivo, 'VIDEO_VIEWS')
+    return MAP.get(objetivo, 'VIDEO_VIEW')
 
 # ── Job control ────────────────────────────────────────────────────────
 @app.route('/api/job/<job_id>/logs')
