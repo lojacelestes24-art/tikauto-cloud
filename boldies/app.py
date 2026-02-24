@@ -27,7 +27,6 @@ LOGS_DIR = os.path.join(os.path.dirname(__file__), 'logs')
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(LOGS_DIR, exist_ok=True)
 
-# ── Storage ────────────────────────────────────────────────────────────
 def load_data(filename, default):
     path = os.path.join(DATA_DIR, filename)
     if os.path.exists(path):
@@ -51,7 +50,6 @@ def save_jobs(d):   save_data('jobs.json', d)
 def get_sparks():   return load_data('sparks.json', [])
 def save_sparks(d): save_data('sparks.json', d)
 
-# ── Job runner ─────────────────────────────────────────────────────────
 running_jobs = {}
 
 def add_log(job_id, msg, level='info'):
@@ -64,7 +62,6 @@ def add_log(job_id, msg, level='info'):
     with open(log_file, 'a', encoding='utf-8') as f:
         f.write(json.dumps(entry, ensure_ascii=False) + '\n')
 
-# ── Extract item_id ────────────────────────────────────────────────────
 def extract_item_id_from_url(text):
     if not text:
         return None
@@ -84,7 +81,6 @@ def extract_item_id_from_url(text):
             pass
     return None
 
-# ── TikTok API helpers ─────────────────────────────────────────────────
 def tiktok_get(endpoint, token, advertiser_id, params=None):
     url = f"{TIKTOK_API_BASE}/{endpoint}/"
     headers = {'Access-Token': token}
@@ -126,12 +122,7 @@ def get_advertiser_info(token, advertiser_id):
     return {}
 
 def get_active_campaigns(token, advertiser_id):
-    """
-    Busca campanhas ativas.
-    - Usa primary_status=STATUS_ACTIVE no filtro da API (doc v1.3)
-    - Aplica filtro local adicional por operation_status=ENABLE como segunda camada de segurança
-    - time.sleep(0.2) para evitar rate limit com 91 contas
-    """
+    """Para exibição na aba Campanhas Ativas — filtra só ENABLE."""
     try:
         filtering = json.dumps({"primary_status": "STATUS_ACTIVE"})
         r = tiktok_get('campaign/get', token, advertiser_id, {
@@ -140,15 +131,29 @@ def get_active_campaigns(token, advertiser_id):
         })
         if r.get('code') == 0:
             camps = r.get('data', {}).get('list', [])
-            # Filtro local: só operation_status == ENABLE (ativas de verdade)
             return [c for c in camps if c.get('operation_status', 'ENABLE') == 'ENABLE']
-        print(f"get_active_campaigns erro adv {advertiser_id}: code={r.get('code')} msg={r.get('message')}")
         return []
     except Exception as e:
         print(f"get_active_campaigns exception adv {advertiser_id}: {e}")
         return []
 
-# ── Objetivo config ────────────────────────────────────────────────────
+def get_all_campaigns_to_disable(token, advertiser_id):
+    """
+    Para o botão Desativar Todas — busca SEM filtro de status.
+    Garante que campanhas com saldo zerado (TikTok muda status automaticamente)
+    também sejam desativadas. Exclui apenas deletadas.
+    """
+    try:
+        r = tiktok_get('campaign/get', token, advertiser_id, {'page_size': 100})
+        if r.get('code') == 0:
+            camps = r.get('data', {}).get('list', [])
+            # Exclui só deletadas — desativa todo o resto
+            return [c for c in camps if c.get('operation_status') != 'DELETE']
+        return []
+    except Exception as e:
+        print(f"get_all_campaigns_to_disable exception adv {advertiser_id}: {e}")
+        return []
+
 OBJETIVO_CONFIG = {
     'VIDEO_VIEWS':     {'objective_type':'VIDEO_VIEWS',     'optimization_goal':'ENGAGED_VIEW', 'billing_event':'CPV'},
     'REACH':           {'objective_type':'REACH',           'optimization_goal':'REACH',        'billing_event':'CPM'},
@@ -170,10 +175,6 @@ def get_location_ids(paises):
     ids = [str(LOCATION_MAP[p]) for p in paises if p in LOCATION_MAP]
     return ids if ids else ['3469034']
 
-# ══════════════════════════════════════════════════════════════════════
-# ROTAS
-# ══════════════════════════════════════════════════════════════════════
-
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -182,7 +183,6 @@ def index():
 def version():
     return jsonify({'version': 'v4-saas-pro'})
 
-# ── OAuth ──────────────────────────────────────────────────────────────
 @app.route('/oauth/url')
 def oauth_url():
     bc_id = request.args.get('bc_id', 'unknown')
@@ -264,7 +264,6 @@ def _exchange_token(auth_code):
     except Exception as e:
         return {'ok': False, 'error': str(e)}
 
-# ── BCs ────────────────────────────────────────────────────────────────
 @app.route('/api/bcs', methods=['GET'])
 def api_get_bcs():
     bcs    = get_bcs()
@@ -322,7 +321,6 @@ def api_get_advertisers(bc_id):
     save_bcs(bcs)
     return jsonify({'ok': True, 'advertiser_ids': advs, 'total': len(advs)})
 
-# ── NOVO: campaigns-overview assíncrono ────────────────────────────────
 @app.route('/api/bcs/<int:bc_id>/campaigns-overview', methods=['POST'])
 def api_campaigns_overview_start(bc_id):
     token = get_token_for_bc(bc_id)
@@ -332,10 +330,9 @@ def api_campaigns_overview_start(bc_id):
     bc  = next((b for b in bcs if b['id'] == bc_id), None)
     if not bc:
         return jsonify({'ok': False, 'error': 'BC nao encontrado'})
-
     adv_ids = bc.get('advertiser_ids', [])
     if not adv_ids:
-        return jsonify({'ok': False, 'error': 'BC sem advertiser IDs. Va em Business Centers e sincronize as contas.'})
+        return jsonify({'ok': False, 'error': 'BC sem advertiser IDs.'})
 
     job_id = f"ov_{str(uuid.uuid4())[:8]}"
     running_jobs[job_id] = {
@@ -348,7 +345,6 @@ def api_campaigns_overview_start(bc_id):
         accounts = bc.get('accounts', {})
         result   = []
         add_log(job_id, f'Buscando campanhas ativas em {len(adv_ids)} contas...', 'info')
-
         for idx, adv_id in enumerate(adv_ids):
             if running_jobs[job_id]['stop']:
                 break
@@ -370,17 +366,14 @@ def api_campaigns_overview_start(bc_id):
                     running_jobs[job_id]['sucesso'] += 1
                 else:
                     add_log(job_id, f'[{idx+1}/{len(adv_ids)}] {acc_name}: sem campanhas ativas', 'info')
-
                 if str(adv_id) in accounts:
                     accounts[str(adv_id)]['campaigns_active'] = len(campaigns)
-
             except Exception as e:
                 add_log(job_id, f'[{idx+1}/{len(adv_ids)}] Erro conta {adv_id}: {str(e)[:80]}', 'error')
                 running_jobs[job_id]['falha'] += 1
-
             running_jobs[job_id]['done'] = idx + 1
             running_jobs[job_id]['campaigns'] = result[:]
-            time.sleep(0.2)  # evita rate limit
+            time.sleep(0.2)
 
         try:
             fresh_bcs = get_bcs()
@@ -407,14 +400,9 @@ def api_overview_job_status(job_id):
         return jsonify({'ok': False, 'error': 'Job nao encontrado'})
     j = running_jobs[job_id]
     return jsonify({
-        'ok'        : True,
-        'status'    : j['status'],
-        'done'      : j['done'],
-        'total'     : j['total'],
-        'sucesso'   : j['sucesso'],
-        'falha'     : j['falha'],
-        'logs'      : j['logs'][offset:],
-        'campaigns' : j['campaigns'],
+        'ok': True, 'status': j['status'], 'done': j['done'], 'total': j['total'],
+        'sucesso': j['sucesso'], 'falha': j['falha'],
+        'logs': j['logs'][offset:], 'campaigns': j['campaigns'],
     })
 
 @app.route('/api/bcs/<int:bc_id>/disable-campaign', methods=['POST'])
@@ -435,6 +423,11 @@ def api_disable_campaign(bc_id):
 
 @app.route('/api/bcs/<int:bc_id>/disable-all-campaigns', methods=['POST'])
 def api_disable_all_campaigns(bc_id):
+    """
+    Desativa TODAS as campanhas — usa get_all_campaigns_to_disable (sem filtro de status)
+    para garantir que campanhas com saldo zerado também sejam desativadas.
+    Processa em lotes de 20 (limite da API TikTok).
+    """
     token = get_token_for_bc(bc_id)
     if not token:
         return jsonify({'ok': False, 'error': 'Sem token'})
@@ -449,36 +442,53 @@ def api_disable_all_campaigns(bc_id):
                              'total':len(adv_ids), 'done':0, 'sucesso':0, 'falha':0}
 
     def run():
-        add_log(job_id, f'Desativando campanhas em {len(adv_ids)} contas...', 'warn')
+        add_log(job_id, f'Desativando TODAS as campanhas em {len(adv_ids)} contas...', 'warn')
+        add_log(job_id, 'Modo: sem filtro de status (inclui campanhas com saldo zerado)', 'info')
         total_disabled = 0
+
         for idx, adv_id in enumerate(adv_ids):
             if running_jobs[job_id]['stop']:
                 break
             try:
-                campaigns = get_active_campaigns(token, adv_id)
-                acc_name  = bc.get('accounts', {}).get(str(adv_id), {}).get('name', adv_id)
+                campaigns = get_all_campaigns_to_disable(token, adv_id)
+                acc_name  = bc.get('accounts', {}).get(str(adv_id), {}).get('name', str(adv_id))
+
                 if not campaigns:
-                    add_log(job_id, f'  [{idx+1}] {acc_name} — sem campanhas ativas')
+                    add_log(job_id, f'  [{idx+1}/{len(adv_ids)}] {acc_name} — nenhuma campanha')
                     running_jobs[job_id]['done'] = idx + 1
+                    time.sleep(0.2)
                     continue
+
                 camp_ids = [str(c['campaign_id']) for c in campaigns]
-                r = tiktok_post('campaign/status/update', token, {
-                    'advertiser_id': adv_id,
-                    'campaign_ids' : camp_ids,
-                    'operation_status': 'DISABLE'
-                })
-                if r.get('code') == 0:
-                    add_log(job_id, f'  [{idx+1}] ✓ {acc_name} — {len(camp_ids)} desativadas', 'success')
-                    total_disabled += len(camp_ids)
+                # Lotes de 20 — limite da API TikTok
+                lotes = [camp_ids[i:i+20] for i in range(0, len(camp_ids), 20)]
+                lote_ok = True
+
+                for lote in lotes:
+                    r = tiktok_post('campaign/status/update', token, {
+                        'advertiser_id': adv_id,
+                        'campaign_ids' : lote,
+                        'operation_status': 'DISABLE'
+                    })
+                    if r.get('code') == 0:
+                        total_disabled += len(lote)
+                    else:
+                        add_log(job_id, f'  [{idx+1}] lote falhou: {r.get("message","")}', 'error')
+                        lote_ok = False
+                    time.sleep(0.3)
+
+                if lote_ok:
+                    add_log(job_id, f'  [{idx+1}/{len(adv_ids)}] ✓ {acc_name} — {len(camp_ids)} desativadas', 'success')
                     running_jobs[job_id]['sucesso'] += 1
                 else:
-                    add_log(job_id, f'  [{idx+1}] ✗ {acc_name}: {r.get("message","")}', 'error')
                     running_jobs[job_id]['falha'] += 1
+
             except Exception as e:
-                add_log(job_id, f'  [{idx+1}] Erro conta {adv_id}: {str(e)[:100]}', 'error')
+                add_log(job_id, f'  [{idx+1}/{len(adv_ids)}] Erro {adv_id}: {str(e)[:100]}', 'error')
                 running_jobs[job_id]['falha'] += 1
+
             running_jobs[job_id]['done'] = idx + 1
-            time.sleep(0.3)
+            time.sleep(0.2)
 
         running_jobs[job_id]['status'] = 'done'
         add_log(job_id, f'Concluido — {total_disabled} campanhas desativadas no total',
@@ -487,7 +497,6 @@ def api_disable_all_campaigns(bc_id):
     threading.Thread(target=run, daemon=True).start()
     return jsonify({'ok': True, 'job_id': job_id})
 
-# ── Pixels ─────────────────────────────────────────────────────────────
 @app.route('/api/pixels/<int:bc_id>', methods=['GET'])
 def api_get_pixels(bc_id):
     token = get_token_for_bc(bc_id)
@@ -504,7 +513,6 @@ def api_get_pixels(bc_id):
         return jsonify({'ok': True, 'pixels': pixels})
     return jsonify({'ok': False, 'error': d.get('message', 'Erro')})
 
-# ── Spark Posts ────────────────────────────────────────────────────────
 @app.route('/api/sparks', methods=['GET'])
 def api_get_sparks():
     return jsonify(get_sparks())
@@ -541,7 +549,6 @@ def resolve_item_id():
         return jsonify({'ok': True, 'item_id': item_id})
     return jsonify({'ok': False, 'error': 'Nao foi possivel extrair o item_id.'})
 
-# ── Campanhas em massa ─────────────────────────────────────────────────
 @app.route('/api/criar-campanhas', methods=['POST'])
 def criar_campanhas():
     d = request.json
@@ -645,8 +652,8 @@ def criar_campanhas():
                 if not adgroup_ids:
                     raise Exception("Nenhum Ad Group criado")
 
-                resolved_identity_id   = identity_id
-                resolved_item_id       = item_id_input
+                resolved_identity_id = identity_id
+                resolved_item_id     = item_id_input
 
                 if not resolved_item_id and post_code:
                     safe_code = post_code.replace('+', '%2B')
@@ -709,7 +716,6 @@ def criar_campanhas():
     threading.Thread(target=run, daemon=True).start()
     return jsonify({'ok': True, 'job_id': job_id, 'total_contas': total})
 
-# ── Job control ────────────────────────────────────────────────────────
 @app.route('/api/job/<job_id>/logs')
 def job_logs(job_id):
     offset = int(request.args.get('offset', 0))
