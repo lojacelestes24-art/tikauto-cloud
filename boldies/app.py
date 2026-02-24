@@ -122,16 +122,22 @@ def get_advertiser_info(token, advertiser_id):
     return {}
 
 def get_active_campaigns(token, advertiser_id):
-    """Para exibição na aba Campanhas Ativas — filtra só ENABLE."""
+    """Para exibição na aba Campanhas Ativas — filtra só ENABLE. Timeout agressivo."""
     try:
+        url = f"{TIKTOK_API_BASE}/campaign/get/"
         filtering = json.dumps({"primary_status": "STATUS_ACTIVE"})
-        r = tiktok_get('campaign/get', token, advertiser_id, {
+        r = requests.get(url, headers={'Access-Token': token}, params={
+            'advertiser_id': advertiser_id,
             'page_size': 100,
             'filtering': filtering,
-        })
-        if r.get('code') == 0:
-            camps = r.get('data', {}).get('list', [])
+        }, timeout=8)  # timeout curto e direto no requests
+        data = r.json()
+        if data.get('code') == 0:
+            camps = data.get('data', {}).get('list', [])
             return [c for c in camps if c.get('operation_status', 'ENABLE') == 'ENABLE']
+        return []
+    except requests.exceptions.Timeout:
+        print(f"get_active_campaigns TIMEOUT adv {advertiser_id}")
         return []
     except Exception as e:
         print(f"get_active_campaigns exception adv {advertiser_id}: {e}")
@@ -144,11 +150,18 @@ def get_all_campaigns_to_disable(token, advertiser_id):
     também sejam desativadas. Exclui apenas deletadas.
     """
     try:
-        r = tiktok_get('campaign/get', token, advertiser_id, {'page_size': 100})
-        if r.get('code') == 0:
-            camps = r.get('data', {}).get('list', [])
-            # Exclui só deletadas — desativa todo o resto
+        url = f"{TIKTOK_API_BASE}/campaign/get/"
+        r = requests.get(url, headers={'Access-Token': token}, params={
+            'advertiser_id': advertiser_id,
+            'page_size': 100,
+        }, timeout=8)  # timeout curto e direto no requests
+        data = r.json()
+        if data.get('code') == 0:
+            camps = data.get('data', {}).get('list', [])
             return [c for c in camps if c.get('operation_status') != 'DELETE']
+        return []
+    except requests.exceptions.Timeout:
+        print(f"get_all_campaigns_to_disable TIMEOUT adv {advertiser_id}")
         return []
     except Exception as e:
         print(f"get_all_campaigns_to_disable exception adv {advertiser_id}: {e}")
