@@ -612,7 +612,7 @@ def _get_location_ids(paises):
 
 def _get_opt_goal(objetivo):
     MAP = {
-        'VIDEO_VIEWS'    : 'VIDEO_VIEWS',
+        'VIDEO_VIEWS'    : 'VIDEO_VIEW',
         'CONVERSIONS'    : 'CONVERT',
         'TRAFFIC'        : 'CLICK',
         'APP_PROMOTION'  : 'INSTALL',
