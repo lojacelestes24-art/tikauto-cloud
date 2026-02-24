@@ -944,9 +944,15 @@ async function disableAll() {
   if (!bcId) return alert('Selecione um BC primeiro');
   if (!confirm('Desativar TODAS as campanhas ativas deste BC?')) return;
 
+  // Para busca em andamento para não conflitar
+  if (ovPoll) { clearInterval(ovPoll); ovPoll = null; }
+
   const wrap = document.getElementById('ov-log-wrap');
   wrap.style.display = '';
   document.getElementById('ov-log').innerHTML = '';
+  document.getElementById('ov-live').style.background = 'var(--red)';
+  document.getElementById('ov-live').style.animation  = '';
+  document.getElementById('ov-prog-wrap').style.display = 'none';
   ovDisableOffset = 0;
 
   const r = await api('POST', `/api/bcs/${bcId}/disable-all-campaigns`);
@@ -968,8 +974,12 @@ async function disableAll() {
       clearInterval(ovDisablePoll);
       document.getElementById('ov-live').style.background = 'var(--green)';
       document.getElementById('ov-live').style.animation  = 'none';
-      // Recarrega overview após desativar
-      setTimeout(() => { wrap.style.display='none'; loadOverview(); }, 1500);
+      // NÃO recarrega automático — botão manual para o usuário decidir
+      const btn = document.createElement('div');
+      btn.style.cssText = 'padding:10px 0 4px';
+      btn.innerHTML = '<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'ov-log-wrap\').style.display=\'none\'; loadOverview()">↻ Ver campanhas restantes</button>';
+      logEl.appendChild(btn);
+      logEl.scrollTop = logEl.scrollHeight;
     }
   }, 1500);
 }
