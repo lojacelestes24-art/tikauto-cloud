@@ -103,45 +103,46 @@ def get_advertiser_ids(token):
 
 # Configuração por objetivo: optimization_goal + billing_event corretos
 OBJETIVO_CONFIG = {
+    # VIDEO_VIEW depreciado na v1.3 — usar ENGAGED_VIEW (oficial)
     'VIDEO_VIEWS': {
-        'objective_type' : 'VIDEO_VIEWS',
-        'optimization_goal': 'VIDEO_VIEW',
-        'billing_event'  : 'CPV',
+        'objective_type'   : 'VIDEO_VIEWS',
+        'optimization_goal': 'ENGAGED_VIEW',
+        'billing_event'    : 'CPV',
     },
     'REACH': {
-        'objective_type' : 'REACH',
+        'objective_type'   : 'REACH',
         'optimization_goal': 'REACH',
-        'billing_event'  : 'CPM',
+        'billing_event'    : 'CPM',
     },
     'TRAFFIC': {
-        'objective_type' : 'TRAFFIC',
+        'objective_type'   : 'TRAFFIC',
         'optimization_goal': 'CLICK',
-        'billing_event'  : 'CPC',
+        'billing_event'    : 'CPC',
     },
     'ENGAGEMENT': {
-        'objective_type' : 'ENGAGEMENT',
-        'optimization_goal': 'POST_ENGAGEMNT',  # typo intencional — é assim na API
-        'billing_event'  : 'CPM',
+        'objective_type'   : 'ENGAGEMENT',
+        'optimization_goal': 'SHOW',
+        'billing_event'    : 'CPM',
     },
     'LEAD_GENERATION': {
-        'objective_type' : 'LEAD_GENERATION',
+        'objective_type'   : 'LEAD_GENERATION',
         'optimization_goal': 'LEAD_GENERATION',
-        'billing_event'  : 'CPM',
+        'billing_event'    : 'OCPM',
     },
     'APP_PROMOTION': {
-        'objective_type' : 'APP_PROMOTION',
+        'objective_type'   : 'APP_PROMOTION',
         'optimization_goal': 'INSTALL',
-        'billing_event'  : 'CPC',
+        'billing_event'    : 'OCPM',
     },
     'CONVERSIONS': {
-        'objective_type' : 'CONVERSIONS',
+        'objective_type'   : 'WEB_CONVERSIONS',
         'optimization_goal': 'CONVERT',
-        'billing_event'  : 'CPC',
+        'billing_event'    : 'OCPM',
     },
     'PRODUCT_SALES': {
-        'objective_type' : 'PRODUCT_SALES',
+        'objective_type'   : 'PRODUCT_SALES',
         'optimization_goal': 'CONVERT',
-        'billing_event'  : 'CPC',
+        'billing_event'    : 'OCPM',
     },
 }
 
