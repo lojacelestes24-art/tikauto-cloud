@@ -1,9 +1,10 @@
 """
 TikAuto Cloud — boldies.site
 Flask backend completo para gestão de campanhas TikTok via API oficial
+v4-saas-pro
 """
 
-from flask import Flask, render_template, jsonify, request, redirect, session
+from flask import Flask, render_template, jsonify, request
 import requests
 import json
 import os
@@ -16,18 +17,17 @@ from datetime import datetime
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'tikauto-secret-2026')
 
-# ── Configuração da API TikTok ─────────────────────────────────────────
 TIKTOK_APP_ID     = os.environ.get('TIKTOK_APP_ID', '7610282489889685520')
 TIKTOK_APP_SECRET = os.environ.get('TIKTOK_APP_SECRET', '')
 TIKTOK_REDIRECT   = os.environ.get('TIKTOK_REDIRECT', 'https://boldies.site/oauth/callback')
 TIKTOK_API_BASE   = 'https://business-api.tiktok.com/open_api/v1.3'
 
-# ── Storage em JSON ────────────────────────────────────────────────────
 DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
 LOGS_DIR = os.path.join(os.path.dirname(__file__), 'logs')
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(LOGS_DIR, exist_ok=True)
 
+# ── Storage ────────────────────────────────────────────────────────────
 def load_data(filename, default):
     path = os.path.join(DATA_DIR, filename)
     if os.path.exists(path):
@@ -48,8 +48,10 @@ def get_tokens():   return load_data('tokens.json', {})
 def save_tokens(d): save_data('tokens.json', d)
 def get_jobs():     return load_data('jobs.json', [])
 def save_jobs(d):   save_data('jobs.json', d)
+def get_sparks():   return load_data('sparks.json', [])
+def save_sparks(d): save_data('sparks.json', d)
 
-# ── Job runner em thread ───────────────────────────────────────────────
+# ── Job runner ─────────────────────────────────────────────────────────
 running_jobs = {}
 
 def add_log(job_id, msg, level='info'):
@@ -62,87 +64,51 @@ def add_log(job_id, msg, level='info'):
     with open(log_file, 'a', encoding='utf-8') as f:
         f.write(json.dumps(entry, ensure_ascii=False) + '\n')
 
-# ══════════════════════════════════════════════════════════════════════
-# EXTRAÇÃO DE ITEM_ID A PARTIR DE URL DO TIKTOK
-# ══════════════════════════════════════════════════════════════════════
-
+# ── Extract item_id ────────────────────────────────────────────────────
 def extract_item_id_from_url(text):
-    """
-    Extrai o item_id numérico de qualquer formato de link TikTok.
-    Exemplos suportados:
-      - https://www.tiktok.com/@user/video/1234567890123456789
-      - https://vm.tiktok.com/ZMxxxxxx/   (URL curta — resolve redirect)
-      - https://vt.tiktok.com/ZMxxxxxx/
-      - 1234567890123456789  (já é o ID direto)
-    Retorna string com o item_id ou None se não encontrar.
-    """
     if not text:
         return None
-
     text = text.strip()
-
-    # Se já for um número puro, retorna direto
     if re.match(r'^\d{10,25}$', text):
         return text
-
-    # Padrão: /video/NUMEROID na URL
     m = re.search(r'/video/(\d{10,25})', text)
     if m:
         return m.group(1)
-
-    # URL curta (vm.tiktok.com ou vt.tiktok.com) — resolve redirect
     if 'vm.tiktok.com' in text or 'vt.tiktok.com' in text:
         try:
             r = requests.head(text, allow_redirects=True, timeout=10)
-            final_url = r.url
-            m = re.search(r'/video/(\d{10,25})', final_url)
+            m = re.search(r'/video/(\d{10,25})', r.url)
             if m:
                 return m.group(1)
         except:
             pass
-
     return None
 
-@app.route('/api/resolve-item-id', methods=['POST'])
-def resolve_item_id():
-    """Endpoint para o frontend testar a extração de item_id via URL."""
-    text = request.json.get('text', '').strip()
-    item_id = extract_item_id_from_url(text)
-    if item_id:
-        return jsonify({'ok': True, 'item_id': item_id})
-    return jsonify({'ok': False, 'error': 'Não foi possível extrair o item_id. Cole o link completo do post ou o ID numérico diretamente.'})
-
-# ── Helpers API TikTok ─────────────────────────────────────────────────
+# ── TikTok API helpers ─────────────────────────────────────────────────
 def tiktok_get(endpoint, token, advertiser_id, params=None):
     url = f"{TIKTOK_API_BASE}/{endpoint}/"
     headers = {'Access-Token': token}
     p = {'advertiser_id': advertiser_id}
     if params: p.update(params)
     r = requests.get(url, headers=headers, params=p, timeout=15)
-    try:
-        return r.json()
-    except:
-        return {'code': -1, 'message': f'Resposta inválida da API: {r.text[:200]}'}
+    try: return r.json()
+    except: return {'code': -1, 'message': f'Resposta invalida: {r.text[:200]}'}
 
 def tiktok_post(endpoint, token, payload):
     url = f"{TIKTOK_API_BASE}/{endpoint}/"
     headers = {'Access-Token': token, 'Content-Type': 'application/json'}
     r = requests.post(url, headers=headers, json=payload, timeout=30)
-    try:
-        return r.json()
-    except:
-        return {'code': -1, 'message': f'Resposta inválida da API: {r.text[:200]}'}
+    try: return r.json()
+    except: return {'code': -1, 'message': f'Resposta invalida: {r.text[:200]}'}
 
 def get_token_for_bc(bc_id):
-    tokens = get_tokens()
-    return tokens.get(str(bc_id), {}).get('access_token')
+    return get_tokens().get(str(bc_id), {}).get('access_token')
 
 def get_advertiser_ids(token):
     url = f"{TIKTOK_API_BASE}/oauth2/advertiser/get/"
-    headers = {'Access-Token': token}
-    params  = {'app_id': TIKTOK_APP_ID, 'secret': TIKTOK_APP_SECRET}
     try:
-        r = requests.get(url, headers=headers, params=params, timeout=15)
+        r = requests.get(url, headers={'Access-Token': token},
+                         params={'app_id': TIKTOK_APP_ID, 'secret': TIKTOK_APP_SECRET}, timeout=15)
         d = r.json()
         if d.get('code') == 0:
             return [str(a['advertiser_id']) for a in d['data'].get('list', [])]
@@ -150,57 +116,38 @@ def get_advertiser_ids(token):
         print(f"Erro get_advertiser_ids: {e}")
     return []
 
-# ── Mapeamentos da API TikTok ──────────────────────────────────────────
+def get_advertiser_info(token, advertiser_id):
+    r = tiktok_get('advertiser/info', token, advertiser_id,
+                   {'fields': '["name","status","currency","timezone"]'})
+    if r.get('code') == 0:
+        info_list = r.get('data', {}).get('list', [])
+        if info_list:
+            return info_list[0]
+    return {}
 
+def get_active_campaigns(token, advertiser_id):
+    r = tiktok_get('campaign/get', token, advertiser_id,
+                   {'primary_status': 'STATUS_ACTIVE', 'page_size': 100})
+    if r.get('code') == 0:
+        return r.get('data', {}).get('list', [])
+    return []
+
+# ── Objetivo config ────────────────────────────────────────────────────
 OBJETIVO_CONFIG = {
-    'VIDEO_VIEWS': {
-        'objective_type'   : 'VIDEO_VIEWS',
-        'optimization_goal': 'ENGAGED_VIEW',
-        'billing_event'    : 'CPV',
-    },
-    'REACH': {
-        'objective_type'   : 'REACH',
-        'optimization_goal': 'REACH',
-        'billing_event'    : 'CPM',
-    },
-    'TRAFFIC': {
-        'objective_type'   : 'TRAFFIC',
-        'optimization_goal': 'CLICK',
-        'billing_event'    : 'CPC',
-    },
-    'ENGAGEMENT': {
-        'objective_type'   : 'ENGAGEMENT',
-        'optimization_goal': 'SHOW',
-        'billing_event'    : 'CPM',
-    },
-    'LEAD_GENERATION': {
-        'objective_type'   : 'LEAD_GENERATION',
-        'optimization_goal': 'LEAD_GENERATION',
-        'billing_event'    : 'OCPM',
-    },
-    'APP_PROMOTION': {
-        'objective_type'   : 'APP_PROMOTION',
-        'optimization_goal': 'INSTALL',
-        'billing_event'    : 'OCPM',
-    },
-    'CONVERSIONS': {
-        'objective_type'   : 'WEB_CONVERSIONS',
-        'optimization_goal': 'CONVERT',
-        'billing_event'    : 'OCPM',
-    },
-    'PRODUCT_SALES': {
-        'objective_type'   : 'PRODUCT_SALES',
-        'optimization_goal': 'CONVERT',
-        'billing_event'    : 'OCPM',
-    },
+    'VIDEO_VIEWS':     {'objective_type':'VIDEO_VIEWS',     'optimization_goal':'ENGAGED_VIEW', 'billing_event':'CPV'},
+    'REACH':           {'objective_type':'REACH',           'optimization_goal':'REACH',        'billing_event':'CPM'},
+    'TRAFFIC':         {'objective_type':'TRAFFIC',         'optimization_goal':'CLICK',        'billing_event':'CPC'},
+    'ENGAGEMENT':      {'objective_type':'ENGAGEMENT',      'optimization_goal':'SHOW',         'billing_event':'CPM'},
+    'LEAD_GENERATION': {'objective_type':'LEAD_GENERATION', 'optimization_goal':'LEAD_GENERATION','billing_event':'OCPM'},
+    'APP_PROMOTION':   {'objective_type':'APP_PROMOTION',   'optimization_goal':'INSTALL',      'billing_event':'OCPM'},
+    'CONVERSIONS':     {'objective_type':'WEB_CONVERSIONS', 'optimization_goal':'CONVERT',      'billing_event':'OCPM'},
+    'PRODUCT_SALES':   {'objective_type':'PRODUCT_SALES',   'optimization_goal':'CONVERT',      'billing_event':'OCPM'},
 }
 
 LOCATION_MAP = {
-    'BR': 3469034,  'PT': 2264397,  'US': 6252001,
-    'MX': 3996063,  'AR': 3865483,  'CO': 3686110,
-    'FR': 3017382,  'DE': 2921044,  'ES': 2510769,
-    'IT': 3175395,  'GB': 2635167,  'AE': 290557,
-    'CL': 3895114,  'PE': 3932488,  'EC': 3658394,
+    'BR':3469034,'PT':2264397,'US':6252001,'MX':3996063,'AR':3865483,
+    'CO':3686110,'FR':3017382,'DE':2921044,'ES':2510769,'IT':3175395,
+    'GB':2635167,'AE':290557,'CL':3895114,'PE':3932488,'EC':3658394,
 }
 
 def get_location_ids(paises):
@@ -208,7 +155,7 @@ def get_location_ids(paises):
     return ids if ids else ['3469034']
 
 # ══════════════════════════════════════════════════════════════════════
-# ROTAS PRINCIPAIS
+# ROTAS
 # ══════════════════════════════════════════════════════════════════════
 
 @app.route('/')
@@ -217,19 +164,14 @@ def index():
 
 @app.route('/api/version')
 def version():
-    return jsonify({'version': 'v3-url-extract-241'})
+    return jsonify({'version': 'v4-saas-pro'})
 
 # ── OAuth ──────────────────────────────────────────────────────────────
 @app.route('/oauth/url')
 def oauth_url():
     bc_id = request.args.get('bc_id', 'unknown')
-    state = f"bcid_{bc_id}"
-    url = (
-        f"https://business-api.tiktok.com/portal/auth"
-        f"?app_id={TIKTOK_APP_ID}"
-        f"&state={state}"
-        f"&redirect_uri={TIKTOK_REDIRECT}"
-    )
+    url = (f"https://business-api.tiktok.com/portal/auth"
+           f"?app_id={TIKTOK_APP_ID}&state=bcid_{bc_id}&redirect_uri={TIKTOK_REDIRECT}")
     return jsonify({'ok': True, 'url': url})
 
 @app.route('/oauth/callback')
@@ -237,36 +179,25 @@ def oauth_callback():
     auth_code = request.args.get('auth_code')
     state     = request.args.get('state', '')
     error     = request.args.get('error_code')
-
     if error:
         return render_template('index.html', oauth_error=error)
     if not auth_code:
         return render_template('index.html', oauth_error='Sem auth_code')
-
     result = _exchange_token(auth_code)
     if not result.get('ok'):
-        return render_template('index.html', oauth_error=result.get('error', 'Erro desconhecido'))
-
+        return render_template('index.html', oauth_error=result.get('error'))
     bc_id = None
     if state.startswith('bcid_'):
         try: bc_id = int(state.replace('bcid_', ''))
         except: pass
-
     token_data = result['data']
     tokens = get_tokens()
-    key    = str(bc_id) if bc_id else token_data.get('advertiser_id', str(time.time()))
-    tokens[key] = {
-        'access_token'  : token_data['access_token'],
-        'advertiser_id' : token_data.get('advertiser_id', ''),
-        'scope'         : token_data.get('scope', ''),
-        'token_type'    : token_data.get('token_type', 'bearer'),
-        'saved_at'      : datetime.now().isoformat(),
-        'bc_id'         : bc_id
-    }
+    key = str(bc_id) if bc_id else token_data.get('advertiser_id', str(time.time()))
+    tokens[key] = {'access_token': token_data['access_token'],
+                   'advertiser_id': token_data.get('advertiser_id', ''),
+                   'saved_at': datetime.now().isoformat(), 'bc_id': bc_id}
     save_tokens(tokens)
-
     advs = get_advertiser_ids(token_data['access_token'])
-
     if bc_id:
         bcs = get_bcs()
         for bc in bcs:
@@ -275,7 +206,6 @@ def oauth_callback():
                 bc['token_ok'] = True
                 break
         save_bcs(bcs)
-
     return render_template('index.html', oauth_success=True, advertiser_count=len(advs))
 
 @app.route('/api/oauth/exchange', methods=['POST'])
@@ -283,23 +213,17 @@ def oauth_exchange():
     auth_code = request.json.get('auth_code')
     bc_id     = request.json.get('bc_id')
     if not auth_code:
-        return jsonify({'ok': False, 'error': 'auth_code obrigatório'})
-
+        return jsonify({'ok': False, 'error': 'auth_code obrigatorio'})
     result = _exchange_token(auth_code)
     if not result.get('ok'):
         return jsonify(result)
-
     token_data = result['data']
     tokens = get_tokens()
-    key    = str(bc_id) if bc_id else token_data.get('advertiser_id', str(time.time()))
-    tokens[key] = {
-        'access_token' : token_data['access_token'],
-        'advertiser_id': token_data.get('advertiser_id', ''),
-        'saved_at'     : datetime.now().isoformat(),
-        'bc_id'        : bc_id
-    }
+    key = str(bc_id) if bc_id else token_data.get('advertiser_id', str(time.time()))
+    tokens[key] = {'access_token': token_data['access_token'],
+                   'advertiser_id': token_data.get('advertiser_id', ''),
+                   'saved_at': datetime.now().isoformat(), 'bc_id': bc_id}
     save_tokens(tokens)
-
     advs = get_advertiser_ids(token_data['access_token'])
     if bc_id:
         bcs = get_bcs()
@@ -309,19 +233,14 @@ def oauth_exchange():
                 bc['token_ok'] = True
                 break
         save_bcs(bcs)
-
     return jsonify({'ok': True, 'advertiser_count': len(advs), 'advertiser_ids': advs})
 
 def _exchange_token(auth_code):
     try:
-        url = f"{TIKTOK_API_BASE}/oauth2/access_token/"
-        payload = {
-            'app_id'    : TIKTOK_APP_ID,
-            'secret'    : TIKTOK_APP_SECRET,
-            'auth_code' : auth_code,
-            'grant_type': 'authorization_code'
-        }
-        r = requests.post(url, json=payload, timeout=15)
+        r = requests.post(f"{TIKTOK_API_BASE}/oauth2/access_token/", json={
+            'app_id': TIKTOK_APP_ID, 'secret': TIKTOK_APP_SECRET,
+            'auth_code': auth_code, 'grant_type': 'authorization_code'
+        }, timeout=15)
         d = r.json()
         if d.get('code') == 0:
             return {'ok': True, 'data': d['data']}
@@ -342,12 +261,13 @@ def api_get_bcs():
 def api_add_bc():
     d = request.json
     bcs = get_bcs()
-    bc  = {
-        'id'            : int(time.time() * 1000),
-        'nome'          : d['nome'],
+    bc = {
+        'id': int(time.time() * 1000),
+        'nome': d['nome'],
         'advertiser_ids': d.get('advertiser_ids', []),
-        'token_ok'      : False,
-        'criado_em'     : datetime.now().isoformat()
+        'accounts': {},
+        'token_ok': False,
+        'criado_em': datetime.now().isoformat()
     }
     bcs.append(bc)
     save_bcs(bcs)
@@ -355,8 +275,7 @@ def api_add_bc():
 
 @app.route('/api/bcs/<int:bc_id>', methods=['DELETE'])
 def api_del_bc(bc_id):
-    bcs = [b for b in get_bcs() if b['id'] != bc_id]
-    save_bcs(bcs)
+    save_bcs([b for b in get_bcs() if b['id'] != bc_id])
     tokens = get_tokens()
     tokens.pop(str(bc_id), None)
     save_tokens(tokens)
@@ -368,74 +287,203 @@ def api_get_advertisers(bc_id):
     if not token:
         return jsonify({'ok': False, 'error': 'BC sem token. Conecte via OAuth primeiro.'})
     advs = get_advertiser_ids(token)
-    bcs = get_bcs()
+    bcs  = get_bcs()
     for bc in bcs:
         if bc['id'] == bc_id:
             bc['advertiser_ids'] = advs
+            if 'accounts' not in bc:
+                bc['accounts'] = {}
+            for adv_id in advs:
+                info = get_advertiser_info(token, adv_id)
+                existing = bc['accounts'].get(adv_id, {})
+                bc['accounts'][adv_id] = {
+                    'name': info.get('name', existing.get('name', adv_id)),
+                    'status': info.get('status', ''),
+                    'currency': info.get('currency', ''),
+                    'campaigns_active': existing.get('campaigns_active', 0)
+                }
             break
     save_bcs(bcs)
     return jsonify({'ok': True, 'advertiser_ids': advs, 'total': len(advs)})
 
-# ── Pixel ──────────────────────────────────────────────────────────────
+@app.route('/api/bcs/<int:bc_id>/campaigns-overview', methods=['GET'])
+def api_campaigns_overview(bc_id):
+    token = get_token_for_bc(bc_id)
+    if not token:
+        return jsonify({'ok': False, 'error': 'Sem token'})
+    bcs = get_bcs()
+    bc  = next((b for b in bcs if b['id'] == bc_id), None)
+    if not bc:
+        return jsonify({'ok': False, 'error': 'BC nao encontrado'})
+
+    accounts = bc.get('accounts', {})
+    adv_ids  = bc.get('advertiser_ids', [])
+    result   = []
+
+    for adv_id in adv_ids:
+        campaigns = get_active_campaigns(token, adv_id)
+        acc_name  = accounts.get(adv_id, {}).get('name', adv_id)
+        for camp in campaigns:
+            result.append({
+                'advertiser_id'  : adv_id,
+                'advertiser_name': acc_name,
+                'campaign_id'    : str(camp.get('campaign_id', '')),
+                'campaign_name'  : camp.get('campaign_name', ''),
+                'status'         : camp.get('primary_status', ''),
+                'budget'         : camp.get('budget', 0),
+                'objective'      : camp.get('objective_type', ''),
+            })
+        if adv_id in accounts:
+            accounts[adv_id]['campaigns_active'] = len(campaigns)
+
+    bc['accounts'] = accounts
+    save_bcs(bcs)
+    return jsonify({'ok': True, 'campaigns': result, 'total': len(result)})
+
+@app.route('/api/bcs/<int:bc_id>/disable-campaign', methods=['POST'])
+def api_disable_campaign(bc_id):
+    token       = get_token_for_bc(bc_id)
+    adv_id      = request.json.get('advertiser_id')
+    campaign_id = request.json.get('campaign_id')
+    if not token:
+        return jsonify({'ok': False, 'error': 'Sem token'})
+    r = tiktok_post('campaign/status/update', token, {
+        'advertiser_id': adv_id,
+        'campaign_ids' : [campaign_id],
+        'operation_status': 'DISABLE'
+    })
+    if r.get('code') == 0:
+        return jsonify({'ok': True})
+    return jsonify({'ok': False, 'error': r.get('message', str(r))})
+
+@app.route('/api/bcs/<int:bc_id>/disable-all-campaigns', methods=['POST'])
+def api_disable_all_campaigns(bc_id):
+    token = get_token_for_bc(bc_id)
+    if not token:
+        return jsonify({'ok': False, 'error': 'Sem token'})
+    bcs = get_bcs()
+    bc  = next((b for b in bcs if b['id'] == bc_id), None)
+    if not bc:
+        return jsonify({'ok': False, 'error': 'BC nao encontrado'})
+
+    adv_ids = bc.get('advertiser_ids', [])
+    job_id  = str(uuid.uuid4())[:8]
+    running_jobs[job_id] = {'logs':[], 'stop':False, 'status':'running',
+                             'total':len(adv_ids), 'done':0, 'sucesso':0, 'falha':0}
+
+    def run():
+        add_log(job_id, f'Desativando campanhas em {len(adv_ids)} contas...', 'warn')
+        total_disabled = 0
+        for idx, adv_id in enumerate(adv_ids):
+            if running_jobs[job_id]['stop']:
+                break
+            campaigns = get_active_campaigns(token, adv_id)
+            acc_name  = bc.get('accounts', {}).get(adv_id, {}).get('name', adv_id)
+            if not campaigns:
+                add_log(job_id, f'  [{idx+1}] {acc_name} — sem campanhas ativas')
+                running_jobs[job_id]['done'] = idx + 1
+                continue
+            camp_ids = [str(c['campaign_id']) for c in campaigns]
+            r = tiktok_post('campaign/status/update', token, {
+                'advertiser_id': adv_id,
+                'campaign_ids' : camp_ids,
+                'operation_status': 'DISABLE'
+            })
+            if r.get('code') == 0:
+                add_log(job_id, f'  [{idx+1}] ✓ {acc_name} — {len(camp_ids)} desativadas', 'success')
+                total_disabled += len(camp_ids)
+                running_jobs[job_id]['sucesso'] += 1
+            else:
+                add_log(job_id, f'  [{idx+1}] ✗ {acc_name}: {r.get("message","")}', 'error')
+                running_jobs[job_id]['falha'] += 1
+            running_jobs[job_id]['done'] = idx + 1
+            time.sleep(0.3)
+
+        running_jobs[job_id]['status'] = 'done'
+        add_log(job_id, f'Concluido — {total_disabled} campanhas desativadas no total',
+                'success' if running_jobs[job_id]['falha'] == 0 else 'warn')
+
+    threading.Thread(target=run, daemon=True).start()
+    return jsonify({'ok': True, 'job_id': job_id})
+
+# ── Pixels ─────────────────────────────────────────────────────────────
 @app.route('/api/pixels/<int:bc_id>', methods=['GET'])
 def api_get_pixels(bc_id):
     token = get_token_for_bc(bc_id)
     if not token:
         return jsonify({'ok': False, 'error': 'Sem token'})
-    bcs  = get_bcs()
-    bc   = next((b for b in bcs if b['id'] == bc_id), None)
+    bcs = get_bcs()
+    bc  = next((b for b in bcs if b['id'] == bc_id), None)
     if not bc or not bc.get('advertiser_ids'):
         return jsonify({'ok': False, 'error': 'Sem advertiser IDs'})
     adv_id = bc['advertiser_ids'][0]
     d = tiktok_get('pixel/list', token, adv_id)
     if d.get('code') == 0:
-        pixels = [{'id': p['pixel_id'], 'name': p['pixel_name'], 'status': p.get('status')}
-                  for p in d['data'].get('pixels', [])]
+        pixels = [{'id': p['pixel_id'], 'name': p['pixel_name']} for p in d['data'].get('pixels', [])]
         return jsonify({'ok': True, 'pixels': pixels})
     return jsonify({'ok': False, 'error': d.get('message', 'Erro')})
 
-# ══════════════════════════════════════════════════════════════════════
-# CRIAÇÃO DE CONTAS EM MASSA (requer parceiro TikTok)
-# ══════════════════════════════════════════════════════════════════════
+# ── Spark Posts ────────────────────────────────────────────────────────
+@app.route('/api/sparks', methods=['GET'])
+def api_get_sparks():
+    return jsonify(get_sparks())
 
-@app.route('/api/criar-contas', methods=['POST'])
-def criar_contas():
-    return jsonify({
-        'ok': False,
-        'error': 'Criação de contas via API requer acesso de parceiro TikTok (não disponível na API padrão).'
-    })
+@app.route('/api/sparks', methods=['POST'])
+def api_add_spark():
+    d      = request.json
+    sparks = get_sparks()
+    value  = d.get('value', '')
+    spark  = {
+        'id'         : str(uuid.uuid4())[:8],
+        'label'      : d.get('label', ''),
+        'type'       : d.get('type', 'post'),
+        'value'      : value,
+        'item_id'    : extract_item_id_from_url(value) or d.get('item_id', ''),
+        'bc_id'      : d.get('bc_id', ''),
+        'identity_id': d.get('identity_id', ''),
+        'criado_em'  : datetime.now().isoformat()
+    }
+    sparks.append(spark)
+    save_sparks(sparks)
+    return jsonify({'ok': True, 'spark': spark})
 
-# ══════════════════════════════════════════════════════════════════════
-# CRIAÇÃO DE CAMPANHAS EM MASSA
-# ══════════════════════════════════════════════════════════════════════
+@app.route('/api/sparks/<spark_id>', methods=['DELETE'])
+def api_del_spark(spark_id):
+    save_sparks([s for s in get_sparks() if s['id'] != spark_id])
+    return jsonify({'ok': True})
 
+@app.route('/api/resolve-item-id', methods=['POST'])
+def resolve_item_id():
+    text    = request.json.get('text', '').strip()
+    item_id = extract_item_id_from_url(text)
+    if item_id:
+        return jsonify({'ok': True, 'item_id': item_id})
+    return jsonify({'ok': False, 'error': 'Nao foi possivel extrair o item_id.'})
+
+# ── Campanhas em massa ─────────────────────────────────────────────────
 @app.route('/api/criar-campanhas', methods=['POST'])
 def criar_campanhas():
     d = request.json
-
-    bc_id        = d['bc_id']
-    adv_ids      = d.get('advertiser_ids', [])
-    objetivo     = d.get('objetivo', 'VIDEO_VIEWS')
-    paises       = d.get('paises', ['BR'])
-    idade_min    = d.get('idade_min', 18)
-    idade_max    = d.get('idade_max', 55)
-    gender       = d.get('gender', 'GENDER_UNLIMITED')
-    pixel_id     = d.get('pixel_id', '')
-    optimization = d.get('optimization_event', 'PURCHASE')
-    post_code    = d.get('post_code', '')
-    post_type    = d.get('post_type', 'SINGLE_VIDEO')
-    identity_id  = d.get('identity_id', '')
-    product_url  = d.get('product_url', '')
-    cta          = d.get('cta', 'LEARN_MORE')
-    num_adgroups = int(d.get('num_adgroups', 1))
-    budget       = float(d.get('budget', 50))
-    budget_mode  = 'BUDGET_MODE_DAY'
+    bc_id         = d['bc_id']
+    adv_ids       = d.get('advertiser_ids', [])
+    objetivo      = d.get('objetivo', 'VIDEO_VIEWS')
+    paises        = d.get('paises', ['BR'])
+    idade_min     = d.get('idade_min', 18)
+    idade_max     = d.get('idade_max', 55)
+    gender        = d.get('gender', 'GENDER_UNLIMITED')
+    pixel_id      = d.get('pixel_id', '')
+    optimization  = d.get('optimization_event', 'PURCHASE')
+    post_code     = d.get('post_code', '')
+    post_type     = d.get('post_type', 'SINGLE_VIDEO')
+    identity_id   = d.get('identity_id', '')
+    product_url   = d.get('product_url', '')
+    cta           = d.get('cta', 'LEARN_MORE')
+    num_adgroups  = int(d.get('num_adgroups', 1))
+    budget        = float(d.get('budget', 50))
     cbo_on        = bool(d.get('budget_optimize_on', False))
     campaign_name = d.get('campaign_name', 'TikAuto')
     adgroup_name  = d.get('adgroup_name', 'AdGroup')
 
-    # ── Resolução do item_id a partir de link ou ID direto ──────────────
-    # Aceita: link completo, URL curta ou número direto
     raw_item_input = d.get('item_id', '').strip()
     item_id_input  = extract_item_id_from_url(raw_item_input) if raw_item_input else ''
 
@@ -447,35 +495,22 @@ def criar_campanhas():
         bcs = get_bcs()
         bc  = next((b for b in bcs if b['id'] == bc_id), None)
         adv_ids = bc.get('advertiser_ids', []) if bc else []
-
     if not adv_ids:
-        return jsonify({'ok': False, 'error': 'Nenhum advertiser ID disponível'})
+        return jsonify({'ok': False, 'error': 'Nenhum advertiser ID disponivel'})
 
     obj_cfg = OBJETIVO_CONFIG.get(objetivo, OBJETIVO_CONFIG['VIDEO_VIEWS'])
+    age_map = {13:'AGE_13_17',18:'AGE_18_24',25:'AGE_25_34',
+               35:'AGE_35_44',45:'AGE_45_54',55:'AGE_55_100'}
+    age_groups = [lbl for val,lbl in age_map.items() if idade_min<=val<=idade_max] \
+                 or ['AGE_18_24','AGE_25_34','AGE_35_44']
 
-    age_map = {
-        13: 'AGE_13_17', 18: 'AGE_18_24', 25: 'AGE_25_34',
-        35: 'AGE_35_44', 45: 'AGE_45_54', 55: 'AGE_55_100'
-    }
-    age_groups = []
-    for age_val, age_label in age_map.items():
-        if idade_min <= age_val <= idade_max:
-            age_groups.append(age_label)
-    if not age_groups:
-        age_groups = ['AGE_18_24', 'AGE_25_34', 'AGE_35_44']
-
-    total   = len(adv_ids)
-    job_id  = str(uuid.uuid4())[:8]
-    running_jobs[job_id] = {
-        'logs': [], 'stop': False, 'status': 'running',
-        'total': total, 'done': 0, 'sucesso': 0, 'falha': 0
-    }
-
+    total  = len(adv_ids)
+    job_id = str(uuid.uuid4())[:8]
+    running_jobs[job_id] = {'logs':[],'stop':False,'status':'running',
+                             'total':total,'done':0,'sucesso':0,'falha':0}
     jobs = get_jobs()
-    jobs.append({
-        'id': job_id, 'tipo': 'criar_campanhas', 'bc_id': bc_id,
-        'objetivo': objetivo, 'criado_em': datetime.now().isoformat(), 'status': 'running'
-    })
+    jobs.append({'id':job_id,'tipo':'criar_campanhas','bc_id':bc_id,
+                 'objetivo':objetivo,'criado_em':datetime.now().isoformat(),'status':'running'})
     save_jobs(jobs)
 
     def run():
@@ -485,199 +520,98 @@ def criar_campanhas():
 
         for idx, adv_id in enumerate(adv_ids):
             if running_jobs[job_id]['stop']:
-                add_log(job_id, 'Parado pelo usuário.', 'warn')
-                break
-
+                add_log(job_id, 'Parado pelo usuario.', 'warn'); break
             add_log(job_id, f'[{idx+1}/{total}] Conta {adv_id}...')
             try:
                 ts = datetime.now().strftime('%Y%m%d%H%M%S')
-
-                # ── 1. Criar Campanha ────────────────────────────────
                 if cbo_on:
-                    camp_payload = {
-                        'advertiser_id'    : adv_id,
-                        'campaign_name'    : f"{campaign_name}_{ts}",
-                        'objective_type'   : obj_cfg['objective_type'],
-                        'budget_optimize_on': True,
-                        'budget_mode'      : 'BUDGET_MODE_DAY',
-                        'budget'           : budget,
-                        'campaign_type'    : 'REGULAR_CAMPAIGN',
-                        'special_industries': [],
-                    }
+                    camp_payload = {'advertiser_id':adv_id,'campaign_name':f"{campaign_name}_{ts}",
+                                    'objective_type':obj_cfg['objective_type'],'budget_optimize_on':True,
+                                    'budget_mode':'BUDGET_MODE_DAY','budget':budget,
+                                    'campaign_type':'REGULAR_CAMPAIGN','special_industries':[]}
                 else:
-                    camp_payload = {
-                        'advertiser_id'    : adv_id,
-                        'campaign_name'    : f"{campaign_name}_{ts}",
-                        'objective_type'   : obj_cfg['objective_type'],
-                        'budget_mode'      : 'BUDGET_MODE_INFINITE',
-                        'campaign_type'    : 'REGULAR_CAMPAIGN',
-                        'special_industries': [],
-                    }
+                    camp_payload = {'advertiser_id':adv_id,'campaign_name':f"{campaign_name}_{ts}",
+                                    'objective_type':obj_cfg['objective_type'],'budget_mode':'BUDGET_MODE_INFINITE',
+                                    'campaign_type':'REGULAR_CAMPAIGN','special_industries':[]}
 
                 r_camp = tiktok_post('campaign/create', token, camp_payload)
                 if r_camp.get('code') != 0:
                     raise Exception(f"Campanha: {r_camp.get('message', str(r_camp))}")
-
                 camp_id = r_camp['data']['campaign_id']
-                add_log(job_id, f'  ✓ Campanha criada: {camp_id}', 'success')
+                add_log(job_id, f'  Campanha criada: {camp_id}', 'success')
 
-                # ── 2. Criar Ad Group(s) ─────────────────────────────
                 adgroup_ids = []
                 for ag_i in range(num_adgroups):
-                    ag_name = adgroup_name if num_adgroups == 1 else f"{adgroup_name}_{ag_i+1}"
-
+                    ag_name = adgroup_name if num_adgroups==1 else f"{adgroup_name}_{ag_i+1}"
                     ag_payload = {
-                        'advertiser_id'    : adv_id,
-                        'campaign_id'      : camp_id,
-                        'adgroup_name'     : ag_name,
-                        'placement_type'   : 'PLACEMENT_TYPE_NORMAL',
-                        'placements'       : ['PLACEMENT_TIKTOK'],
-                        'location_ids'     : get_location_ids(paises),
-                        'age_groups'       : age_groups,
-                        'gender'           : gender,
-                        'budget_mode'      : budget_mode,
-                        'budget'           : budget,
-                        'schedule_type'    : 'SCHEDULE_FROM_NOW',
-                        'schedule_start_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                        'optimization_goal': obj_cfg['optimization_goal'],
-                        'billing_event'    : obj_cfg['billing_event'],
-                        'bid_type'         : 'BID_TYPE_NO_BID',
-                        'pacing'           : 'PACING_MODE_SMOOTH',
-                        'operation_status' : 'ENABLE',
+                        'advertiser_id':adv_id,'campaign_id':camp_id,'adgroup_name':ag_name,
+                        'placement_type':'PLACEMENT_TYPE_NORMAL','placements':['PLACEMENT_TIKTOK'],
+                        'location_ids':get_location_ids(paises),'age_groups':age_groups,'gender':gender,
+                        'budget_mode':'BUDGET_MODE_DAY','budget':budget,'schedule_type':'SCHEDULE_FROM_NOW',
+                        'schedule_start_time':datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                        'optimization_goal':obj_cfg['optimization_goal'],'billing_event':obj_cfg['billing_event'],
+                        'bid_type':'BID_TYPE_NO_BID','pacing':'PACING_MODE_SMOOTH','operation_status':'ENABLE',
                     }
-
-                    if objetivo == 'CONVERSIONS' and pixel_id:
-                        ag_payload['pixel_id']           = pixel_id
-                        ag_payload['optimization_event'] = optimization
-
+                    if objetivo=='CONVERSIONS' and pixel_id:
+                        ag_payload['pixel_id']=pixel_id; ag_payload['optimization_event']=optimization
                     r_ag = tiktok_post('adgroup/create', token, ag_payload)
                     if r_ag.get('code') != 0:
-                        add_log(job_id, f'  ✗ Ad Group {ag_i+1}: {r_ag.get("message", str(r_ag))}', 'error')
-                        continue
-
-                    ag_id = r_ag['data']['adgroup_id']
-                    adgroup_ids.append(ag_id)
-                    add_log(job_id, f'  ✓ Ad Group {ag_i+1}: {ag_id}', 'success')
+                        add_log(job_id, f'  Ad Group {ag_i+1}: {r_ag.get("message")}', 'error'); continue
+                    adgroup_ids.append(r_ag['data']['adgroup_id'])
+                    add_log(job_id, f'  Ad Group {ag_i+1}: {r_ag["data"]["adgroup_id"]}', 'success')
                     time.sleep(0.5)
 
                 if not adgroup_ids:
-                    raise Exception("Nenhum Ad Group criado com sucesso")
+                    raise Exception("Nenhum Ad Group criado")
 
-                # ── 3. Resolver item_id ──────────────────────────────
                 resolved_identity_id   = identity_id
-                resolved_identity_type = 'TT_USER'
-                resolved_item_id       = item_id_input  # já extraído da URL acima
+                resolved_item_id       = item_id_input
 
-                if resolved_item_id:
-                    add_log(job_id, f'  ✓ Item ID: {resolved_item_id}', 'info')
-                elif not post_code:
-                    add_log(job_id, '  ⚠ Sem link/item_id nem auth_code — ad será pulado', 'warn')
-                else:
-                    # Tenta /tt_video/info/ com auth_code
+                if not resolved_item_id and post_code:
                     safe_code = post_code.replace('+', '%2B')
-                    r_info = tiktok_get('tt_video/info', token, adv_id,
-                                        {'auth_code': safe_code})
+                    r_info = tiktok_get('tt_video/info', token, adv_id, {'auth_code': safe_code})
                     if r_info.get('code') == 0:
-                        data_info = r_info.get('data', {})
+                        data_info        = r_info.get('data', {})
                         resolved_item_id = str(data_info.get('item_info', {}).get('item_id', ''))
                         if not resolved_identity_id:
-                            resolved_identity_id   = data_info.get('user_info', {}).get('identity_id', '')
-                            resolved_identity_type = data_info.get('user_info', {}).get('identity_type', 'AUTH_CODE')
-                        add_log(job_id,
-                            f'  ✓ Post info: item_id={resolved_item_id} | identity={resolved_identity_id}', 'info')
-                    else:
-                        # Fallback: busca via /tt_video/list/
-                        add_log(job_id, '  ↻ Buscando post via lista (fallback)...', 'info')
-                        found = False
-                        page  = 1
-                        while not found:
-                            r_list = tiktok_get('tt_video/list', token, adv_id,
-                                                {'page': page, 'page_size': 50})
-                            add_log(job_id, f'  [debug] tt_video/list code={r_list.get("code")} msg={r_list.get("message", "")[:80]}', 'info')
-                            if r_list.get('code') != 0:
-                                add_log(job_id,
-                                    f'  ✗ Erro ao listar posts: {r_list.get("message", str(r_list))}', 'error')
-                                break
-                            posts      = r_list.get('data', {}).get('list', [])
-                            page_info  = r_list.get('data', {}).get('page_info', {})
-                            for post in posts:
-                                item_info = post.get('item_info', {})
-                                if item_info.get('auth_code', '') == post_code:
-                                    resolved_item_id = str(item_info.get('item_id', ''))
-                                    if not resolved_identity_id:
-                                        resolved_identity_id   = post.get('user_info', {}).get('identity_id', '')
-                                        resolved_identity_type = post.get('user_info', {}).get('identity_type', 'AUTH_CODE')
-                                    add_log(job_id,
-                                        f'  ✓ Post encontrado: item_id={resolved_item_id} | identity={resolved_identity_id}', 'info')
-                                    found = True
-                                    break
-                            if found or page >= page_info.get('total_page', 1):
-                                break
-                            page += 1
-                        if not found:
-                            add_log(job_id, '  ✗ Post não encontrado na lista — verifique o auth_code', 'error')
+                            resolved_identity_id = data_info.get('user_info', {}).get('identity_id', '')
 
-                # Fallback: busca identity na conta se ainda não tiver
                 if not resolved_identity_id:
-                    for id_type in ['TT_USER', 'AUTH_CODE', 'BC_AUTH_TT']:
-                        r_ident = tiktok_get('identity/get', token, adv_id,
-                                             {'identity_type': id_type})
+                    for id_type in ['TT_USER','AUTH_CODE','BC_AUTH_TT']:
+                        r_ident = tiktok_get('identity/get', token, adv_id, {'identity_type': id_type})
                         if r_ident.get('code') == 0:
-                            ident_list = r_ident.get('data', {}).get('identity_list', [])
-                            available  = [i for i in ident_list if i.get('available_status') == 'AVAILABLE']
+                            available = [i for i in r_ident.get('data',{}).get('identity_list',[])
+                                         if i.get('available_status')=='AVAILABLE']
                             if available:
-                                resolved_identity_id   = available[0].get('identity_id', '')
-                                resolved_identity_type = id_type
-                                add_log(job_id,
-                                    f'  ✓ Identity [{id_type}]: {resolved_identity_id}', 'info')
-                                break
+                                resolved_identity_id = available[0].get('identity_id',''); break
                     if not resolved_identity_id:
-                        add_log(job_id, '  ⚠ Nenhum identity encontrado para esta conta', 'warn')
+                        add_log(job_id, '  Nenhum identity encontrado', 'warn')
 
-                # ── 4. Criar Ad (Spark Ad) ───────────────────────────
                 for ag_id in adgroup_ids:
                     if not resolved_item_id:
-                        add_log(job_id, '  ⚠ Ad pulado: item_id não resolvido', 'warn')
-                        break
+                        add_log(job_id, '  Ad pulado: sem item_id', 'warn'); break
                     if not resolved_identity_id:
-                        add_log(job_id, '  ⚠ Ad pulado: sem identity_id', 'warn')
-                        break
-
-                    ad_name = f"Ad_{datetime.now().strftime('%Y%m%d%H%M%S')}"
-
+                        add_log(job_id, '  Ad pulado: sem identity_id', 'warn'); break
                     creative = {
-                        'ad_name'                   : ad_name,
-                        'ad_format'                 : post_type,
-                        'identity_type'             : 'BC_AUTH_TT',
-                        'identity_id'               : resolved_identity_id,
-                        'identity_authorized_bc_id' : '7607905792628621313',
-                        'tiktok_item_id'            : resolved_item_id,
-                        'call_to_action'            : cta,
+                        'ad_name': f"Ad_{ts}", 'ad_format': post_type,
+                        'identity_type': 'BC_AUTH_TT', 'identity_id': resolved_identity_id,
+                        'identity_authorized_bc_id': '7607905792628621313',
+                        'tiktok_item_id': resolved_item_id, 'call_to_action': cta,
                     }
-
-                    if product_url:
-                        creative['landing_page_url'] = product_url
-
-                    ad_payload = {
-                        'advertiser_id': adv_id,
-                        'adgroup_id'   : ag_id,
-                        'creatives'    : [creative],
-                    }
-
-                    r_ad = tiktok_post('ad/create', token, ad_payload)
+                    if product_url: creative['landing_page_url'] = product_url
+                    r_ad = tiktok_post('ad/create', token,
+                                       {'advertiser_id':adv_id,'adgroup_id':ag_id,'creatives':[creative]})
                     if r_ad.get('code') != 0:
-                        add_log(job_id, f'  ✗ Ad: {r_ad.get("message", str(r_ad))}', 'error')
+                        add_log(job_id, f'  Ad: {r_ad.get("message")}', 'error')
                     else:
-                        ad_ids = r_ad.get('data', {}).get('ad_ids', [])
-                        add_log(job_id, f'  ✓ Ad criado: {ad_ids}', 'success')
+                        add_log(job_id, f'  Ad criado: {r_ad.get("data",{}).get("ad_ids",[])}', 'success')
                     time.sleep(0.3)
 
                 running_jobs[job_id]['sucesso'] += 1
-                add_log(job_id, f'[{idx+1}/{total}] ✓ Conta {adv_id} concluída!', 'success')
-
+                add_log(job_id, f'[{idx+1}/{total}] Conta concluida!', 'success')
             except Exception as e:
                 running_jobs[job_id]['falha'] += 1
-                add_log(job_id, f'[{idx+1}/{total}] ✗ Erro conta {adv_id}: {str(e)[:200]}', 'error')
+                add_log(job_id, f'[{idx+1}/{total}] Erro: {str(e)[:200]}', 'error')
 
             running_jobs[job_id]['done'] = idx + 1
             time.sleep(0.5)
@@ -685,96 +619,46 @@ def criar_campanhas():
         running_jobs[job_id]['status'] = 'done'
         s = running_jobs[job_id]['sucesso']
         f = running_jobs[job_id]['falha']
-        add_log(job_id, f'✓ Concluído: {s} sucessos, {f} falhas', 'success' if f == 0 else 'warn')
-
+        add_log(job_id, f'Concluido: {s} sucessos, {f} falhas', 'success' if f==0 else 'warn')
         jobs = get_jobs()
         for j in jobs:
-            if j['id'] == job_id:
-                j['status'] = 'done'
-                j['sucesso'] = s
-                j['falha']   = f
-                break
+            if j['id']==job_id: j['status']='done'; j['sucesso']=s; j['falha']=f; break
         save_jobs(jobs)
 
-    t = threading.Thread(target=run, daemon=True)
-    running_jobs[job_id]['thread'] = t
-    t.start()
+    threading.Thread(target=run, daemon=True).start()
     return jsonify({'ok': True, 'job_id': job_id, 'total_contas': total})
-
-# ── Debug identity ────────────────────────────────────────────────────
-@app.route('/api/debug/identity/<int:bc_id>')
-def debug_identity(bc_id):
-    token = get_token_for_bc(bc_id)
-    if not token:
-        return jsonify({'error': 'sem token'})
-    adv_id      = '7608267784702853138'
-    results     = {}
-    identity_id = '7610243151726575617'
-    item_id     = '7610455329033227541'
-    bc_id_str   = '7607905792628621313'
-
-    for id_type in ['TT_USER', 'AUTH_CODE', 'BC_AUTH_TT']:
-        creative = {
-            'ad_name'       : f'debug_{id_type}',
-            'ad_format'     : 'SINGLE_VIDEO',
-            'identity_type' : id_type,
-            'identity_id'   : identity_id,
-            'tiktok_item_id': item_id,
-            'call_to_action': 'LEARN_MORE',
-        }
-        if id_type == 'BC_AUTH_TT':
-            creative['identity_authorized_bc_id'] = bc_id_str
-        payload = {
-            'advertiser_id': adv_id,
-            'adgroup_id'   : '1858021589796114',
-            'creatives'    : [creative],
-        }
-        r = tiktok_post('ad/create', token, payload)
-        results[id_type] = {'code': r.get('code'), 'message': r.get('message', '')}
-    return jsonify(results)
 
 # ── Job control ────────────────────────────────────────────────────────
 @app.route('/api/job/<job_id>/logs')
 def job_logs(job_id):
     offset = int(request.args.get('offset', 0))
     if job_id in running_jobs:
-        logs    = running_jobs[job_id]['logs']
-        status  = running_jobs[job_id]['status']
-        done    = running_jobs[job_id]['done']
-        total   = running_jobs[job_id]['total']
-        sucesso = running_jobs[job_id]['sucesso']
-        falha   = running_jobs[job_id]['falha']
+        j = running_jobs[job_id]
+        logs=j['logs']; status=j['status']; done=j['done']
+        total=j['total']; sucesso=j['sucesso']; falha=j['falha']
     else:
         log_file = os.path.join(LOGS_DIR, f'{job_id}.jsonl')
         logs = []
         if os.path.exists(log_file):
-            with open(log_file, 'r', encoding='utf-8') as f:
+            with open(log_file,'r',encoding='utf-8') as f:
                 for line in f:
                     try: logs.append(json.loads(line))
                     except: pass
-        status = 'done'; done = 0; total = 0; sucesso = 0; falha = 0
-    return jsonify({
-        'logs'      : logs[offset:],
-        'total_logs': len(logs),
-        'status'    : status,
-        'done'      : done,
-        'total'     : total,
-        'sucesso'   : sucesso,
-        'falha'     : falha,
-    })
+        status='done'; done=0; total=0; sucesso=0; falha=0
+    return jsonify({'logs':logs[offset:],'total_logs':len(logs),'status':status,
+                    'done':done,'total':total,'sucesso':sucesso,'falha':falha})
 
 @app.route('/api/job/<job_id>/stop', methods=['POST'])
 def job_stop(job_id):
     if job_id in running_jobs:
         running_jobs[job_id]['stop'] = True
         return jsonify({'ok': True})
-    return jsonify({'ok': False, 'error': 'Job não encontrado'})
+    return jsonify({'ok': False, 'error': 'Job nao encontrado'})
 
 @app.route('/api/jobs')
 def list_jobs():
     return jsonify(get_jobs()[-50:])
 
-# ── Dashboard stats ────────────────────────────────────────────────────
 @app.route('/api/stats')
 def api_stats():
     bcs    = get_bcs()
@@ -782,17 +666,31 @@ def api_stats():
     jobs   = get_jobs()
     contas_total = sum(len(b.get('advertiser_ids', [])) for b in bcs)
     camp_jobs    = [j for j in jobs if j.get('tipo') == 'criar_campanhas']
-    camp_suc     = sum(j.get('sucesso', 0) for j in camp_jobs)
-    camp_fal     = sum(j.get('falha', 0) for j in camp_jobs)
     rodando      = len([j for j in running_jobs.values() if j.get('status') == 'running'])
     return jsonify({
         'total_bcs'     : len(bcs),
         'bcs_conectados': sum(1 for b in bcs if str(b['id']) in tokens),
         'total_contas'  : contas_total,
-        'camp_sucesso'  : camp_suc,
-        'camp_falha'    : camp_fal,
+        'camp_sucesso'  : sum(j.get('sucesso', 0) for j in camp_jobs),
+        'camp_falha'    : sum(j.get('falha', 0) for j in camp_jobs),
         'rodando'       : rodando,
+        'total_sparks'  : len(get_sparks()),
     })
+
+@app.route('/api/debug/identity/<int:bc_id>')
+def debug_identity(bc_id):
+    token = get_token_for_bc(bc_id)
+    if not token: return jsonify({'error': 'sem token'})
+    results = {}
+    for id_type in ['TT_USER','AUTH_CODE','BC_AUTH_TT']:
+        creative = {'ad_name':f'debug_{id_type}','ad_format':'SINGLE_VIDEO',
+                    'identity_type':id_type,'identity_id':'7610243151726575617',
+                    'tiktok_item_id':'7610455329033227541','call_to_action':'LEARN_MORE'}
+        if id_type=='BC_AUTH_TT': creative['identity_authorized_bc_id']='7607905792628621313'
+        r = tiktok_post('ad/create', token, {'advertiser_id':'7608267784702853138',
+                                              'adgroup_id':'1858021589796114','creatives':[creative]})
+        results[id_type] = {'code':r.get('code'),'message':r.get('message','')}
+    return jsonify(results)
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
