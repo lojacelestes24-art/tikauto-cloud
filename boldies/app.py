@@ -647,6 +647,24 @@ def criar_campanhas():
     t.start()
     return jsonify({'ok': True, 'job_id': job_id, 'total_contas': total})
 
+# ── Debug identity ────────────────────────────────────────────────────
+@app.route('/api/debug/identity/<int:bc_id>')
+def debug_identity(bc_id):
+    token = get_token_for_bc(bc_id)
+    if not token:
+        return jsonify({'error': 'sem token'})
+    bcs = get_bcs()
+    bc = next((b for b in bcs if b['id'] == bc_id), None)
+    adv_id = bc['advertiser_ids'][0] if bc and bc.get('advertiser_ids') else ''
+    results = {}
+    for id_type in ['TT_USER', 'AUTH_CODE', 'BC_AUTH_TT']:
+        params = {'identity_type': id_type}
+        if id_type == 'BC_AUTH_TT':
+            params['identity_authorized_bc_id'] = '7607905792628621313'
+        r = tiktok_get('identity/get', token, adv_id, params)
+        results[id_type] = r
+    return jsonify({'advertiser_id': adv_id, 'results': results})
+
 # ── Job control ────────────────────────────────────────────────────────
 @app.route('/api/job/<job_id>/logs')
 def job_logs(job_id):
