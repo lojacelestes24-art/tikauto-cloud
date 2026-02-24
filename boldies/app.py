@@ -371,6 +371,7 @@ def criar_campanhas():
     pixel_id     = d.get('pixel_id', '')
     optimization = d.get('optimization_event', 'PURCHASE')
     post_code    = d.get('post_code', '')
+    item_id_input= d.get('item_id', '').strip()
     identity_id  = d.get('identity_id', '')
     product_url  = d.get('product_url', '')
     cta          = d.get('cta', 'LEARN_MORE')
@@ -509,11 +510,13 @@ def criar_campanhas():
 
                 # ── 3. Resolver item_id e identity a partir do auth_code (Spark Ad) ──
                 resolved_identity_id   = identity_id
-                resolved_identity_type = 'AUTH_CODE'
-                resolved_item_id       = ''
+                resolved_identity_type = 'TT_USER'
+                resolved_item_id       = item_id_input  # usa item_id manual se fornecido
 
-                if not post_code:
-                    add_log(job_id, '  ⚠ Sem código de post — ad será pulado', 'warn')
+                if resolved_item_id:
+                    add_log(job_id, f'  ✓ Item ID manual: {resolved_item_id}', 'info')
+                elif not post_code:
+                    add_log(job_id, '  ⚠ Sem código de post nem item_id — ad será pulado', 'warn')
                 else:
                     # Tenta /tt_video/info/ primeiro (mais direto)
                     safe_code = post_code.replace('+', '%2B')
