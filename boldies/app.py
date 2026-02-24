@@ -515,22 +515,49 @@ def criar_campanhas():
                 if not post_code:
                     add_log(job_id, '  ⚠ Sem código de post — ad será pulado', 'warn')
                 else:
-                    # Busca info do post via auth_code → retorna item_id + identity_id
+                    # Tenta /tt_video/info/ primeiro (mais direto)
                     safe_code = post_code.replace('+', '%2B')
                     r_info = tiktok_get('tt_video/info', token, adv_id,
                                         {'auth_code': safe_code})
                     if r_info.get('code') == 0:
                         data_info = r_info.get('data', {})
                         resolved_item_id = str(data_info.get('item_info', {}).get('item_id', ''))
-                        # identity vinda direto do post (mais confiável)
                         if not resolved_identity_id:
                             resolved_identity_id   = data_info.get('user_info', {}).get('identity_id', '')
                             resolved_identity_type = data_info.get('user_info', {}).get('identity_type', 'AUTH_CODE')
                         add_log(job_id,
                             f'  ✓ Post info: item_id={resolved_item_id} | identity={resolved_identity_id}', 'info')
                     else:
-                        add_log(job_id,
-                            f'  ✗ Erro ao buscar info do post: {r_info.get("message", str(r_info))}', 'error')
+                        # Fallback: busca via /tt_video/list/ e filtra pelo auth_code
+                        add_log(job_id, '  ↻ Buscando post via lista (fallback)...', 'info')
+                        found = False
+                        page  = 1
+                        while not found:
+                            r_list = tiktok_get('tt_video/list', token, adv_id,
+                                                {'page': page, 'page_size': 50})
+                            add_log(job_id, f'  [debug] tt_video/list code={r_list.get("code")} msg={r_list.get("message", "")[:80]}', 'info')
+                            if r_list.get('code') != 0:
+                                add_log(job_id,
+                                    f'  ✗ Erro ao listar posts: {r_list.get("message", str(r_list))}', 'error')
+                                break
+                            posts      = r_list.get('data', {}).get('list', [])
+                            page_info  = r_list.get('data', {}).get('page_info', {})
+                            for post in posts:
+                                item_info = post.get('item_info', {})
+                                if item_info.get('auth_code', '') == post_code:
+                                    resolved_item_id = str(item_info.get('item_id', ''))
+                                    if not resolved_identity_id:
+                                        resolved_identity_id   = post.get('user_info', {}).get('identity_id', '')
+                                        resolved_identity_type = post.get('user_info', {}).get('identity_type', 'AUTH_CODE')
+                                    add_log(job_id,
+                                        f'  ✓ Post encontrado: item_id={resolved_item_id} | identity={resolved_identity_id}', 'info')
+                                    found = True
+                                    break
+                            if found or page >= page_info.get('total_page', 1):
+                                break
+                            page += 1
+                        if not found:
+                            add_log(job_id, '  ✗ Post não encontrado na lista — verifique o auth_code', 'error')
 
                 # fallback: busca identity na conta se ainda não tiver
                 if not resolved_identity_id:
