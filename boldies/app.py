@@ -126,16 +126,22 @@ def get_advertiser_info(token, advertiser_id):
     return {}
 
 def get_active_campaigns(token, advertiser_id):
+    """
+    Busca campanhas ativas.
+    - Usa primary_status=STATUS_ACTIVE no filtro da API (doc v1.3)
+    - Aplica filtro local adicional por operation_status=ENABLE como segunda camada de segurança
+    - time.sleep(0.2) para evitar rate limit com 91 contas
+    """
     try:
-        # Filtra diretamente por status ativo usando o filtering da API
-        import json as _json
-        filtering = _json.dumps({"status": "CAMPAIGN_STATUS_ENABLE"})
+        filtering = json.dumps({"primary_status": "STATUS_ACTIVE"})
         r = tiktok_get('campaign/get', token, advertiser_id, {
             'page_size': 100,
             'filtering': filtering,
         })
         if r.get('code') == 0:
-            return r.get('data', {}).get('list', [])
+            camps = r.get('data', {}).get('list', [])
+            # Filtro local: só operation_status == ENABLE (ativas de verdade)
+            return [c for c in camps if c.get('operation_status', 'ENABLE') == 'ENABLE']
         print(f"get_active_campaigns erro adv {advertiser_id}: code={r.get('code')} msg={r.get('message')}")
         return []
     except Exception as e:
@@ -317,7 +323,6 @@ def api_get_advertisers(bc_id):
     return jsonify({'ok': True, 'advertiser_ids': advs, 'total': len(advs)})
 
 # ── NOVO: campaigns-overview assíncrono ────────────────────────────────
-# Inicia um job em background e retorna job_id imediatamente
 @app.route('/api/bcs/<int:bc_id>/campaigns-overview', methods=['POST'])
 def api_campaigns_overview_start(bc_id):
     token = get_token_for_bc(bc_id)
@@ -330,19 +335,19 @@ def api_campaigns_overview_start(bc_id):
 
     adv_ids = bc.get('advertiser_ids', [])
     if not adv_ids:
-        return jsonify({'ok': False, 'error': 'BC sem advertiser IDs. Vá em Business Centers e sincronize as contas.'})
+        return jsonify({'ok': False, 'error': 'BC sem advertiser IDs. Va em Business Centers e sincronize as contas.'})
 
     job_id = f"ov_{str(uuid.uuid4())[:8]}"
     running_jobs[job_id] = {
         'logs': [], 'stop': False, 'status': 'running',
         'total': len(adv_ids), 'done': 0, 'sucesso': 0, 'falha': 0,
-        'campaigns': []  # acumula resultados
+        'campaigns': []
     }
 
     def run():
         accounts = bc.get('accounts', {})
         result   = []
-        add_log(job_id, f'Buscando campanhas em {len(adv_ids)} contas...', 'info')
+        add_log(job_id, f'Buscando campanhas ativas em {len(adv_ids)} contas...', 'info')
 
         for idx, adv_id in enumerate(adv_ids):
             if running_jobs[job_id]['stop']:
@@ -357,16 +362,15 @@ def api_campaigns_overview_start(bc_id):
                             'advertiser_name': acc_name,
                             'campaign_id'    : str(camp.get('campaign_id', '')),
                             'campaign_name'  : camp.get('campaign_name', ''),
-                            'status'         : camp.get('status', 'CAMPAIGN_STATUS_ENABLE'),
+                            'status'         : camp.get('operation_status', 'ENABLE'),
                             'budget'         : camp.get('budget', 0),
                             'objective'      : camp.get('objective_type', ''),
                         })
                     add_log(job_id, f'[{idx+1}/{len(adv_ids)}] {acc_name}: {len(campaigns)} ativas', 'success')
                     running_jobs[job_id]['sucesso'] += 1
                 else:
-                    add_log(job_id, f'[{idx+1}/{len(adv_ids)}] {acc_name}: sem campanhas', 'info')
+                    add_log(job_id, f'[{idx+1}/{len(adv_ids)}] {acc_name}: sem campanhas ativas', 'info')
 
-                # atualiza cache no BC
                 if str(adv_id) in accounts:
                     accounts[str(adv_id)]['campaigns_active'] = len(campaigns)
 
@@ -375,9 +379,9 @@ def api_campaigns_overview_start(bc_id):
                 running_jobs[job_id]['falha'] += 1
 
             running_jobs[job_id]['done'] = idx + 1
-            running_jobs[job_id]['campaigns'] = result[:]  # snapshot parcial disponível para o frontend
+            running_jobs[job_id]['campaigns'] = result[:]
+            time.sleep(0.2)  # evita rate limit
 
-        # salva cache atualizado
         try:
             fresh_bcs = get_bcs()
             for b in fresh_bcs:
@@ -390,17 +394,17 @@ def api_campaigns_overview_start(bc_id):
         running_jobs[job_id]['status'] = 'done'
         running_jobs[job_id]['campaigns'] = result
         total_camp = len(result)
-        add_log(job_id, f'Concluído — {total_camp} campanhas ativas encontradas', 'success' if total_camp > 0 else 'warn')
+        add_log(job_id, f'Concluido — {total_camp} campanhas ativas encontradas',
+                'success' if total_camp > 0 else 'warn')
 
     threading.Thread(target=run, daemon=True).start()
     return jsonify({'ok': True, 'job_id': job_id, 'total_contas': len(adv_ids)})
 
-# Polling: retorna logs + campanhas encontradas até agora
 @app.route('/api/overview-job/<job_id>')
 def api_overview_job_status(job_id):
     offset = int(request.args.get('offset', 0))
     if job_id not in running_jobs:
-        return jsonify({'ok': False, 'error': 'Job não encontrado'})
+        return jsonify({'ok': False, 'error': 'Job nao encontrado'})
     j = running_jobs[job_id]
     return jsonify({
         'ok'        : True,
