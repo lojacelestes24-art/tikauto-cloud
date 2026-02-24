@@ -372,6 +372,7 @@ def criar_campanhas():
     optimization = d.get('optimization_event', 'PURCHASE')
     post_code    = d.get('post_code', '')
     item_id_input= d.get('item_id', '').strip()
+    post_type    = d.get('post_type', 'SINGLE_VIDEO')
     identity_id  = d.get('identity_id', '')
     product_url  = d.get('product_url', '')
     cta          = d.get('cta', 'LEARN_MORE')
@@ -510,7 +511,7 @@ def criar_campanhas():
 
                 # ── 3. Resolver item_id e identity a partir do auth_code (Spark Ad) ──
                 resolved_identity_id   = identity_id
-                resolved_identity_type = 'AUTH_CODE'
+                resolved_identity_type = 'BC_AUTH_TT'
                 resolved_item_id       = item_id_input  # usa item_id manual se fornecido
 
                 if resolved_item_id:
@@ -592,7 +593,7 @@ def criar_campanhas():
 
                     creative = {
                         'ad_name'        : ad_name,
-                        'ad_format'      : 'SINGLE_VIDEO',
+                        'ad_format'      : post_type,
                         'identity_type'  : resolved_identity_type,
                         'identity_id'    : resolved_identity_id,
                         'tiktok_item_id' : resolved_item_id,   # ✓ ID numérico do post
