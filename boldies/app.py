@@ -130,7 +130,7 @@ def get_active_campaigns(token, advertiser_id):
             'advertiser_id': advertiser_id,
             'page_size': 100,
             'filtering': filtering,
-        }, timeout=8)  # timeout curto e direto no requests
+        }, timeout=(5, 8))  # (connect, read) timeout
         data = r.json()
         if data.get('code') == 0:
             camps = data.get('data', {}).get('list', [])
@@ -154,7 +154,7 @@ def get_all_campaigns_to_disable(token, advertiser_id):
         r = requests.get(url, headers={'Access-Token': token}, params={
             'advertiser_id': advertiser_id,
             'page_size': 100,
-        }, timeout=8)  # timeout curto e direto no requests
+        }, timeout=(5, 8))  # (connect, read) timeout
         data = r.json()
         if data.get('code') == 0:
             camps = data.get('data', {}).get('list', [])
