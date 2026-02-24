@@ -125,12 +125,18 @@ def get_advertiser_info(token, advertiser_id):
             return info_list[0]
     return {}
 
+# ── FIX: get_active_campaigns com tratamento de erro robusto ───────────
 def get_active_campaigns(token, advertiser_id):
-    r = tiktok_get('campaign/get', token, advertiser_id,
-                   {'primary_status': 'STATUS_ACTIVE', 'page_size': 100})
-    if r.get('code') == 0:
-        return r.get('data', {}).get('list', [])
-    return []
+    try:
+        r = tiktok_get('campaign/get', token, advertiser_id,
+                       {'primary_status': 'STATUS_ACTIVE', 'page_size': 100})
+        if r.get('code') == 0:
+            return r.get('data', {}).get('list', [])
+        print(f"get_active_campaigns erro adv {advertiser_id}: code={r.get('code')} msg={r.get('message')}")
+        return []
+    except Exception as e:
+        print(f"get_active_campaigns exception adv {advertiser_id}: {e}")
+        return []
 
 # ── Objetivo config ────────────────────────────────────────────────────
 OBJETIVO_CONFIG = {
@@ -306,39 +312,56 @@ def api_get_advertisers(bc_id):
     save_bcs(bcs)
     return jsonify({'ok': True, 'advertiser_ids': advs, 'total': len(advs)})
 
+# ── FIX: campaigns-overview com try/except em cada adv_id ─────────────
 @app.route('/api/bcs/<int:bc_id>/campaigns-overview', methods=['GET'])
 def api_campaigns_overview(bc_id):
-    token = get_token_for_bc(bc_id)
-    if not token:
-        return jsonify({'ok': False, 'error': 'Sem token'})
-    bcs = get_bcs()
-    bc  = next((b for b in bcs if b['id'] == bc_id), None)
-    if not bc:
-        return jsonify({'ok': False, 'error': 'BC nao encontrado'})
+    try:
+        token = get_token_for_bc(bc_id)
+        if not token:
+            return jsonify({'ok': False, 'error': 'Sem token. Conecte o BC via OAuth.'})
+        bcs = get_bcs()
+        bc  = next((b for b in bcs if b['id'] == bc_id), None)
+        if not bc:
+            return jsonify({'ok': False, 'error': 'BC nao encontrado'})
 
-    accounts = bc.get('accounts', {})
-    adv_ids  = bc.get('advertiser_ids', [])
-    result   = []
+        accounts = bc.get('accounts', {})
+        adv_ids  = bc.get('advertiser_ids', [])
 
-    for adv_id in adv_ids:
-        campaigns = get_active_campaigns(token, adv_id)
-        acc_name  = accounts.get(adv_id, {}).get('name', adv_id)
-        for camp in campaigns:
-            result.append({
-                'advertiser_id'  : adv_id,
-                'advertiser_name': acc_name,
-                'campaign_id'    : str(camp.get('campaign_id', '')),
-                'campaign_name'  : camp.get('campaign_name', ''),
-                'status'         : camp.get('primary_status', ''),
-                'budget'         : camp.get('budget', 0),
-                'objective'      : camp.get('objective_type', ''),
-            })
-        if adv_id in accounts:
-            accounts[adv_id]['campaigns_active'] = len(campaigns)
+        if not adv_ids:
+            return jsonify({'ok': False, 'error': 'BC sem advertiser IDs. Vá em Business Centers e atualize as contas.'})
 
-    bc['accounts'] = accounts
-    save_bcs(bcs)
-    return jsonify({'ok': True, 'campaigns': result, 'total': len(result)})
+        result = []
+        errors = []
+
+        for adv_id in adv_ids:
+            try:
+                campaigns = get_active_campaigns(token, adv_id)
+                acc_name  = accounts.get(str(adv_id), {}).get('name', adv_id)
+                for camp in campaigns:
+                    result.append({
+                        'advertiser_id'  : str(adv_id),
+                        'advertiser_name': acc_name,
+                        'campaign_id'    : str(camp.get('campaign_id', '')),
+                        'campaign_name'  : camp.get('campaign_name', ''),
+                        'status'         : camp.get('primary_status', ''),
+                        'budget'         : camp.get('budget', 0),
+                        'objective'      : camp.get('objective_type', ''),
+                    })
+                if str(adv_id) in accounts:
+                    accounts[str(adv_id)]['campaigns_active'] = len(campaigns)
+            except Exception as e:
+                err_msg = f"Erro na conta {adv_id}: {str(e)[:100]}"
+                print(err_msg)
+                errors.append(err_msg)
+                continue
+
+        bc['accounts'] = accounts
+        save_bcs(bcs)
+        return jsonify({'ok': True, 'campaigns': result, 'total': len(result), 'errors': errors})
+
+    except Exception as e:
+        print(f"api_campaigns_overview exception: {e}")
+        return jsonify({'ok': False, 'error': f'Erro interno: {str(e)[:200]}'})
 
 @app.route('/api/bcs/<int:bc_id>/disable-campaign', methods=['POST'])
 def api_disable_campaign(bc_id):
@@ -377,24 +400,28 @@ def api_disable_all_campaigns(bc_id):
         for idx, adv_id in enumerate(adv_ids):
             if running_jobs[job_id]['stop']:
                 break
-            campaigns = get_active_campaigns(token, adv_id)
-            acc_name  = bc.get('accounts', {}).get(adv_id, {}).get('name', adv_id)
-            if not campaigns:
-                add_log(job_id, f'  [{idx+1}] {acc_name} — sem campanhas ativas')
-                running_jobs[job_id]['done'] = idx + 1
-                continue
-            camp_ids = [str(c['campaign_id']) for c in campaigns]
-            r = tiktok_post('campaign/status/update', token, {
-                'advertiser_id': adv_id,
-                'campaign_ids' : camp_ids,
-                'operation_status': 'DISABLE'
-            })
-            if r.get('code') == 0:
-                add_log(job_id, f'  [{idx+1}] ✓ {acc_name} — {len(camp_ids)} desativadas', 'success')
-                total_disabled += len(camp_ids)
-                running_jobs[job_id]['sucesso'] += 1
-            else:
-                add_log(job_id, f'  [{idx+1}] ✗ {acc_name}: {r.get("message","")}', 'error')
+            try:
+                campaigns = get_active_campaigns(token, adv_id)
+                acc_name  = bc.get('accounts', {}).get(str(adv_id), {}).get('name', adv_id)
+                if not campaigns:
+                    add_log(job_id, f'  [{idx+1}] {acc_name} — sem campanhas ativas')
+                    running_jobs[job_id]['done'] = idx + 1
+                    continue
+                camp_ids = [str(c['campaign_id']) for c in campaigns]
+                r = tiktok_post('campaign/status/update', token, {
+                    'advertiser_id': adv_id,
+                    'campaign_ids' : camp_ids,
+                    'operation_status': 'DISABLE'
+                })
+                if r.get('code') == 0:
+                    add_log(job_id, f'  [{idx+1}] ✓ {acc_name} — {len(camp_ids)} desativadas', 'success')
+                    total_disabled += len(camp_ids)
+                    running_jobs[job_id]['sucesso'] += 1
+                else:
+                    add_log(job_id, f'  [{idx+1}] ✗ {acc_name}: {r.get("message","")}', 'error')
+                    running_jobs[job_id]['falha'] += 1
+            except Exception as e:
+                add_log(job_id, f'  [{idx+1}] Erro conta {adv_id}: {str(e)[:100]}', 'error')
                 running_jobs[job_id]['falha'] += 1
             running_jobs[job_id]['done'] = idx + 1
             time.sleep(0.3)
