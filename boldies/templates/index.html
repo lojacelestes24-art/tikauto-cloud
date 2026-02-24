@@ -33,14 +33,12 @@
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.5;overflow:hidden}
 
-/* ─── LAYOUT ─────────────────────────────────────────── */
 .shell{display:flex;height:100vh;width:100vw}
 .sidebar{width:220px;min-width:220px;background:var(--bg1);border-right:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden}
 .main{flex:1;display:flex;flex-direction:column;overflow:hidden}
 .topbar{height:52px;background:var(--bg1);border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 20px;gap:10px;flex-shrink:0}
 .content{flex:1;overflow-y:auto;padding:28px}
 
-/* ─── SIDEBAR ────────────────────────────────────────── */
 .logo{padding:22px 20px 18px;border-bottom:1px solid var(--line)}
 .logo-mark{display:flex;align-items:center;gap:10px}
 .logo-icon{width:32px;height:32px;background:var(--red);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
@@ -62,9 +60,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .status-row{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text3)}
 .pulse{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 2s ease-in-out infinite;flex-shrink:0}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(.85)}}
-.pulse.off{background:var(--text3);box-shadow:none;animation:none}
 
-/* ─── TOPBAR ─────────────────────────────────────────── */
 .tb-breadcrumb{font-family:var(--mono);font-size:11px;color:var(--text3);flex:1}
 .tb-breadcrumb span{color:var(--text2)}
 .tb-pill{display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--line2);border-radius:20px;padding:5px 12px;font-size:11px;font-family:var(--mono);cursor:default}
@@ -72,7 +68,6 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .tb-pill.running{border-color:rgba(255,51,88,.3);background:rgba(255,51,88,.08)}
 .tb-pill.running strong{color:var(--red)}
 
-/* ─── PAGE ───────────────────────────────────────────── */
 .page{display:none;animation:fadein .2s ease}
 .page.active{display:block}
 @keyframes fadein{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
@@ -82,7 +77,6 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .ph-left p{font-size:12px;color:var(--text3);font-family:var(--mono);margin-top:3px}
 .ph-actions{display:flex;gap:8px;align-items:center}
 
-/* ─── KPI GRID ───────────────────────────────────────── */
 .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:24px}
 .kpi{background:var(--bg1);border:1px solid var(--line);border-radius:var(--r);padding:20px;position:relative;overflow:hidden;transition:border-color .15s}
 .kpi:hover{border-color:var(--line2)}
@@ -100,13 +94,11 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .kpi-n.purple{color:var(--purple)}
 .kpi-l{font-size:11px;color:var(--text3);margin-top:6px;text-transform:uppercase;letter-spacing:.8px;font-weight:600}
 
-/* ─── CARDS / PANELS ─────────────────────────────────── */
 .card{background:var(--bg1);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
 .card-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line);background:var(--bg2)}
 .card-title{font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2)}
 .card-body{padding:18px}
 
-/* ─── TABLE ──────────────────────────────────────────── */
 .tbl{width:100%;border-collapse:collapse}
 .tbl th{padding:9px 14px;text-align:left;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--line);background:var(--bg2);white-space:nowrap}
 .tbl td{padding:11px 14px;border-bottom:1px solid var(--line);font-size:13px;vertical-align:middle}
@@ -114,7 +106,6 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .tbl tbody tr:hover td{background:rgba(255,255,255,.015)}
 .mono{font-family:var(--mono);font-size:11px;color:var(--cyan)}
 
-/* ─── BUTTONS ────────────────────────────────────────── */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 16px;border-radius:8px;border:1px solid transparent;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap;font-family:var(--sans)}
 .btn-primary{background:var(--red);color:#fff;border-color:var(--red)}
 .btn-primary:hover{background:var(--red2)}
@@ -128,7 +119,6 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .btn-xs{padding:3px 8px;font-size:10px}
 .btn:disabled{opacity:.35;cursor:not-allowed}
 
-/* ─── FORMS ──────────────────────────────────────────── */
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
 .fgroup{margin-bottom:14px}
@@ -152,7 +142,6 @@ input[type=range]{flex:1;accent-color:var(--red);height:4px}
      color:var(--text2);font-size:12px;cursor:pointer;transition:all .15s;font-family:var(--sans);font-weight:500}
 .tgl.on{background:rgba(255,51,88,.15);color:var(--red);border-color:rgba(255,51,88,.4)}
 
-/* ─── BADGES ─────────────────────────────────────────── */
 .badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;font-size:10px;font-weight:700;font-family:var(--mono);white-space:nowrap}
 .badge-ok{background:rgba(34,221,136,.1);color:var(--green);border:1px solid rgba(34,221,136,.2)}
 .badge-err{background:rgba(255,51,88,.1);color:var(--red);border:1px solid rgba(255,51,88,.2)}
@@ -160,7 +149,6 @@ input[type=range]{flex:1;accent-color:var(--red);height:4px}
 .badge-idle{background:var(--bg3);color:var(--text3);border:1px solid var(--line)}
 .badge-warn{background:rgba(255,204,51,.1);color:var(--yellow);border:1px solid rgba(255,204,51,.2)}
 
-/* ─── LOG ────────────────────────────────────────────── */
 .log-box{background:#04040a;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
 .log-head{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--line);background:var(--bg2)}
 .log-ttl{font-family:var(--mono);font-size:10px;color:var(--text3);flex:1}
@@ -177,12 +165,10 @@ input[type=range]{flex:1;accent-color:var(--red);height:4px}
 .lm.error{color:var(--red)}
 .lm.warn{color:var(--yellow)}
 
-/* ─── PROGRESS ───────────────────────────────────────── */
 .prog-wrap{background:var(--bg3);border-radius:3px;height:4px;overflow:hidden}
 .prog-fill{height:100%;border-radius:3px;transition:width .4s ease;background:var(--red)}
 .prog-fill.green{background:var(--green)}
 
-/* ─── BC CARDS ───────────────────────────────────────── */
 .bc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
 .bc-card{background:var(--bg1);border:1px solid var(--line);border-radius:var(--r);padding:18px;transition:border-color .15s;position:relative}
 .bc-card:hover{border-color:var(--line2)}
@@ -192,15 +178,6 @@ input[type=range]{flex:1;accent-color:var(--red);height:4px}
 .bc-meta{font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px}
 .bc-actions{display:flex;gap:6px;margin-top:14px;flex-wrap:wrap}
 
-/* ─── ACCOUNTS TABLE ─────────────────────────────────── */
-.acc-row{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line);transition:background .1s}
-.acc-row:last-child{border-bottom:none}
-.acc-row:hover{background:rgba(255,255,255,.015)}
-.acc-name{flex:1;font-size:13px;font-weight:600}
-.acc-id{font-family:var(--mono);font-size:10px;color:var(--text3)}
-.acc-camps{font-family:var(--mono);font-size:12px;color:var(--cyan);min-width:60px;text-align:right}
-
-/* ─── CAMPAIGNS OVERVIEW ─────────────────────────────── */
 .camp-row{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--line);transition:background .1s}
 .camp-row:last-child{border-bottom:none}
 .camp-row:hover{background:rgba(255,255,255,.015)}
@@ -209,7 +186,6 @@ input[type=range]{flex:1;accent-color:var(--red);height:4px}
 .camp-acc{font-size:11px;color:var(--text3);font-family:var(--mono)}
 .camp-meta{display:flex;align-items:center;gap:10px;flex-shrink:0}
 
-/* ─── SPARK CARDS ────────────────────────────────────── */
 .spark-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
 .spark-card{background:var(--bg1);border:1px solid var(--line);border-radius:var(--r);padding:16px;transition:border-color .15s}
 .spark-card:hover{border-color:var(--line2)}
@@ -220,7 +196,6 @@ input[type=range]{flex:1;accent-color:var(--red);height:4px}
 .spark-val{font-family:var(--mono);font-size:10px;color:var(--text3);word-break:break-all;line-height:1.4}
 .spark-actions{display:flex;gap:6px;margin-top:12px}
 
-/* ─── ADV LIST ───────────────────────────────────────── */
 .adv-list{max-height:180px;overflow-y:auto;border:1px solid var(--line2);border-radius:8px}
 .adv-item{display:flex;align-items:center;gap:8px;padding:7px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--line)}
 .adv-item:last-child{border-bottom:none}
@@ -229,40 +204,38 @@ input[type=range]{flex:1;accent-color:var(--red);height:4px}
 .adv-item-name{flex:1;font-weight:600}
 .adv-item-id{font-family:var(--mono);font-size:10px;color:var(--text3)}
 
-/* ─── TOGGLE SWITCH ──────────────────────────────────── */
 .sw{position:relative;width:42px;height:22px;cursor:pointer;flex-shrink:0}
 .sw-track{position:absolute;inset:0;background:var(--bg3);border:1px solid var(--line2);border-radius:11px;transition:.2s}
 .sw-thumb{position:absolute;left:3px;top:3px;width:14px;height:14px;background:var(--text3);border-radius:50%;transition:.2s}
 .sw.on .sw-track{background:rgba(255,51,88,.25);border-color:rgba(255,51,88,.5)}
 .sw.on .sw-thumb{background:var(--red);left:23px}
 
-/* ─── MODAL ──────────────────────────────────────────── */
 .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(6px);z-index:100;align-items:center;justify-content:center}
 .overlay.open{display:flex}
 .modal{background:var(--bg1);border:1px solid var(--line2);border-radius:14px;padding:28px;width:540px;max-width:95vw;max-height:90vh;overflow-y:auto}
 .modal h2{font-size:17px;font-weight:800;margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid var(--line)}
 .modal-foot{display:flex;gap:8px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}
 
-/* ─── EMPTY STATE ────────────────────────────────────── */
 .empty{padding:48px 24px;text-align:center;color:var(--text3)}
 .empty-icon{font-size:40px;margin-bottom:12px;display:block}
 .empty-text{font-size:13px;color:var(--text3)}
 
-/* ─── SPIN ───────────────────────────────────────────── */
 @keyframes spin{to{transform:rotate(360deg)}}
 .spin{animation:spin .7s linear infinite}
 
-/* ─── SCROLLBAR ──────────────────────────────────────── */
 ::-webkit-scrollbar{width:4px;height:4px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--line2);border-radius:4px}
 
-/* ─── SECTION LABEL ──────────────────────────────────── */
 .slabel{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text3);margin:20px 0 10px}
 .slabel:first-child{margin-top:0}
-
-/* ─── DIVIDER ────────────────────────────────────────── */
 .divider{height:1px;background:var(--line);margin:16px 0}
+
+/* ── Overview progress bar ── */
+.ov-prog{background:var(--bg2);border:1px solid var(--line);border-radius:var(--r);padding:14px 18px;margin-bottom:16px}
+.ov-prog-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.ov-prog-label{font-size:11px;font-weight:700;color:var(--text2)}
+.ov-prog-count{font-family:var(--mono);font-size:11px;color:var(--cyan)}
 
 @media(max-width:768px){
   .sidebar{display:none}
@@ -278,7 +251,6 @@ input[type=range]{flex:1;accent-color:var(--red);height:4px}
 
 <div class="shell">
 
-<!-- ══ SIDEBAR ════════════════════════════════════════ -->
 <nav class="sidebar">
   <div class="logo">
     <div class="logo-mark">
@@ -333,7 +305,6 @@ input[type=range]{flex:1;accent-color:var(--red);height:4px}
   </div>
 </nav>
 
-<!-- ══ MAIN ═══════════════════════════════════════════ -->
 <div class="main">
   <div class="topbar">
     <div class="tb-breadcrumb">TikAuto / <span id="tb-page">Dashboard</span></div>
@@ -347,13 +318,11 @@ input[type=range]{flex:1;accent-color:var(--red);height:4px}
 
   <div class="content">
 
-    <!-- ══ DASHBOARD ══════════════════════════════════ -->
+    <!-- DASHBOARD -->
     <div class="page active" id="page-dashboard">
       <div class="ph">
         <div class="ph-left"><h1>Dashboard</h1><p>// visão geral em tempo real</p></div>
-        <div class="ph-actions">
-          <button class="btn btn-ghost btn-sm" onclick="loadStats()">↻ Refresh</button>
-        </div>
+        <div class="ph-actions"><button class="btn btn-ghost btn-sm" onclick="loadStats()">↻ Refresh</button></div>
       </div>
       <div class="kpi-grid">
         <div class="kpi cyan"><div class="kpi-n cyan" id="d-bcs">0</div><div class="kpi-l">Business Centers</div></div>
@@ -369,20 +338,18 @@ input[type=range]{flex:1;accent-color:var(--red);height:4px}
       </div>
     </div>
 
-    <!-- ══ BUSINESS CENTERS ════════════════════════════ -->
+    <!-- BUSINESS CENTERS -->
     <div class="page" id="page-bcs">
       <div class="ph">
         <div class="ph-left"><h1>Business Centers</h1><p>// contas, OAuth e contas de anúncio</p></div>
-        <div class="ph-actions">
-          <button class="btn btn-primary" onclick="openM('m-add-bc')">+ Adicionar BC</button>
-        </div>
+        <div class="ph-actions"><button class="btn btn-primary" onclick="openM('m-add-bc')">+ Adicionar BC</button></div>
       </div>
       <div class="bc-grid" id="bc-grid">
         <div class="empty" style="grid-column:1/-1"><span class="empty-icon">🏢</span><div class="empty-text">Nenhum BC cadastrado</div></div>
       </div>
     </div>
 
-    <!-- ══ CAMPANHAS ATIVAS (OVERVIEW) ════════════════ -->
+    <!-- CAMPANHAS ATIVAS -->
     <div class="page" id="page-overview">
       <div class="ph">
         <div class="ph-left"><h1>Campanhas Ativas</h1><p>// overview e controle por conta</p></div>
@@ -391,37 +358,49 @@ input[type=range]{flex:1;accent-color:var(--red);height:4px}
             <option value="">— Selecione BC —</option>
           </select>
           <button class="btn btn-warn" onclick="disableAll()">⏹ Desativar Todas</button>
-          <button class="btn btn-ghost btn-sm" onclick="loadOverview()">↻ Refresh</button>
+          <button class="btn btn-ghost btn-sm" id="ov-refresh-btn" onclick="loadOverview()">↻ Refresh</button>
         </div>
       </div>
+
+      <!-- Barra de progresso do scan -->
+      <div id="ov-prog-wrap" style="display:none" class="ov-prog">
+        <div class="ov-prog-top">
+          <span class="ov-prog-label">
+            <span class="live" style="display:inline-block;margin-right:6px;vertical-align:middle"></span>
+            Buscando campanhas...
+          </span>
+          <span class="ov-prog-count" id="ov-prog-count">0 / 0</span>
+        </div>
+        <div class="prog-wrap"><div class="prog-fill" id="ov-prog-bar" style="width:0%"></div></div>
+        <div style="font-size:10px;color:var(--text3);font-family:var(--mono);margin-top:6px" id="ov-prog-last"></div>
+      </div>
+
+      <!-- Log do disable-all -->
       <div id="ov-log-wrap" style="display:none;margin-bottom:16px">
         <div class="log-box">
           <div class="log-head"><div class="live" id="ov-live"></div><div class="log-ttl">Desativando campanhas...</div></div>
           <div class="log-body" id="ov-log" style="height:140px"></div>
         </div>
       </div>
+
       <div class="card" id="ov-card">
-        <div class="empty"><span class="empty-icon">📡</span><div class="empty-text">Selecione um BC e aguarde o carregamento</div></div>
+        <div class="empty"><span class="empty-icon">📡</span><div class="empty-text">Selecione um BC para carregar as campanhas</div></div>
       </div>
     </div>
 
-    <!-- ══ CRIAR CAMPANHAS ═════════════════════════════ -->
+    <!-- CRIAR CAMPANHAS -->
     <div class="page" id="page-campanhas">
       <div class="ph">
         <div class="ph-left"><h1>Criar Campanhas</h1><p>// disparo em massa via API TikTok</p></div>
       </div>
       <div class="grid2" style="align-items:start">
-        <!-- Formulário -->
         <div style="display:flex;flex-direction:column;gap:14px">
-
           <div class="card">
             <div class="card-head"><div class="card-title">Campanha</div></div>
             <div class="card-body" style="display:flex;flex-direction:column;gap:14px">
               <div class="fgroup" style="margin-bottom:0">
                 <label>Business Center</label>
-                <select id="c-bc" onchange="onCampBC()">
-                  <option value="">— Selecione —</option>
-                </select>
+                <select id="c-bc" onchange="onCampBC()"><option value="">— Selecione —</option></select>
               </div>
               <div class="fgroup" style="margin-bottom:0">
                 <label>Contas <span id="c-sel-count" style="color:var(--cyan);font-family:var(--mono)">0 selecionadas</span></label>
@@ -583,14 +562,11 @@ input[type=range]{flex:1;accent-color:var(--red);height:4px}
           </div>
 
           <div style="display:flex;gap:8px">
-            <button class="btn btn-primary" id="btn-camp" onclick="startCamp()" style="flex:1">
-              ▶ Disparar Campanhas
-            </button>
+            <button class="btn btn-primary" id="btn-camp" onclick="startCamp()" style="flex:1">▶ Disparar Campanhas</button>
             <button class="btn btn-danger" id="btn-stop-camp" onclick="stopJob('camp')" style="display:none">■ Parar</button>
           </div>
         </div>
 
-        <!-- Log ao vivo -->
         <div style="display:flex;flex-direction:column;gap:14px">
           <div id="c-prog-wrap" style="display:none">
             <div class="card" style="padding:14px 16px">
@@ -616,26 +592,22 @@ input[type=range]{flex:1;accent-color:var(--red);height:4px}
       </div>
     </div>
 
-    <!-- ══ SPARK POSTS ═════════════════════════════════ -->
+    <!-- SPARK POSTS -->
     <div class="page" id="page-sparks">
       <div class="ph">
         <div class="ph-left"><h1>Spark Posts</h1><p>// posts e links salvos para reutilizar</p></div>
-        <div class="ph-actions">
-          <button class="btn btn-primary" onclick="openM('m-add-spark')">+ Adicionar</button>
-        </div>
+        <div class="ph-actions"><button class="btn btn-primary" onclick="openM('m-add-spark')">+ Adicionar</button></div>
       </div>
       <div class="spark-grid" id="spark-grid">
         <div class="empty" style="grid-column:1/-1"><span class="empty-icon">⚡</span><div class="empty-text">Nenhum Spark Post salvo ainda</div></div>
       </div>
     </div>
 
-    <!-- ══ HISTÓRICO JOBS ══════════════════════════════ -->
+    <!-- HISTÓRICO JOBS -->
     <div class="page" id="page-jobs">
       <div class="ph">
         <div class="ph-left"><h1>Histórico de Jobs</h1><p>// todos os processos executados</p></div>
-        <div class="ph-actions">
-          <button class="btn btn-ghost btn-sm" onclick="loadJobs()">↻ Refresh</button>
-        </div>
+        <div class="ph-actions"><button class="btn btn-ghost btn-sm" onclick="loadJobs()">↻ Refresh</button></div>
       </div>
       <div class="card">
         <table class="tbl">
@@ -647,12 +619,11 @@ input[type=range]{flex:1;accent-color:var(--red);height:4px}
       </div>
     </div>
 
-  </div><!-- /content -->
-</div><!-- /main -->
-</div><!-- /shell -->
+  </div>
+</div>
+</div>
 
-<!-- ══ MODALS ══════════════════════════════════════════ -->
-
+<!-- MODALS -->
 <div class="overlay" id="m-add-bc">
   <div class="modal">
     <h2>Adicionar Business Center</h2>
@@ -713,9 +684,7 @@ input[type=range]{flex:1;accent-color:var(--red);height:4px}
     </div>
     <div class="fgroup">
       <label>Business Center <span style="color:var(--text3)">(opcional)</span></label>
-      <select id="sp-bc">
-        <option value="">— Nenhum —</option>
-      </select>
+      <select id="sp-bc"><option value="">— Nenhum —</option></select>
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeM('m-add-spark')">Cancelar</button>
@@ -738,18 +707,15 @@ input[type=range]{flex:1;accent-color:var(--red);height:4px}
 </div>
 
 <script>
-// ══════════════════════════════════════════════════════
-// STATE
-// ══════════════════════════════════════════════════════
+// ── STATE ──────────────────────────────────────────────────────────────
 let bcs = [], sparks = [];
 let oauthBcId = null;
 let campJobId = null, campPoll = null, campOffset = 0;
 let ovJobId   = null, ovPoll   = null, ovOffset   = 0;
+let ovDisablePoll = null, ovDisableOffset = 0;
 window._cbo = false;
 
-// ══════════════════════════════════════════════════════
-// NAV
-// ══════════════════════════════════════════════════════
+// ── NAV ────────────────────────────────────────────────────────────────
 function goto(name, el) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -762,9 +728,7 @@ function goto(name, el) {
   if (name === 'overview')  populateOvBC();
 }
 
-// ══════════════════════════════════════════════════════
-// API
-// ══════════════════════════════════════════════════════
+// ── API ────────────────────────────────────────────────────────────────
 async function api(method, path, body) {
   const opts = { method, headers: {'Content-Type':'application/json'} };
   if (body) opts.body = JSON.stringify(body);
@@ -772,9 +736,7 @@ async function api(method, path, body) {
   return r.json();
 }
 
-// ══════════════════════════════════════════════════════
-// BCs
-// ══════════════════════════════════════════════════════
+// ── BCs ────────────────────────────────────────────────────────────────
 async function loadBCs() {
   bcs = await api('GET', '/api/bcs');
   renderBCGrid();
@@ -789,7 +751,7 @@ function renderBCGrid() {
     return;
   }
   g.innerHTML = bcs.map(bc => {
-    const n = (bc.advertiser_ids||[]).length;
+    const n  = (bc.advertiser_ids||[]).length;
     const ok = bc.token_ok;
     const badge = ok
       ? '<span class="badge badge-ok">✓ Conectado</span>'
@@ -814,23 +776,20 @@ function renderBCGrid() {
 }
 
 function renderBCSelects() {
-  const opts = '<option value="">— Selecione —</option>' +
-    bcs.map(b => `<option value="${b.id}">${esc(b.nome)} (${(b.advertiser_ids||[]).length})</option>`).join('');
-  ['c-bc','ov-bc-sel','sp-bc'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.innerHTML = opts.replace('<option value="">— Selecione —</option>',
-      id==='sp-bc' ? '<option value="">— Nenhum —</option>' : '<option value="">— Selecione —</option>');
-  });
+  const opts = bcs.map(b => `<option value="${b.id}">${esc(b.nome)} (${(b.advertiser_ids||[]).length})</option>`).join('');
+  document.getElementById('c-bc').innerHTML      = '<option value="">— Selecione —</option>' + opts;
+  document.getElementById('ov-bc-sel').innerHTML = '<option value="">— Selecione BC —</option>' + opts;
+  document.getElementById('sp-bc').innerHTML     = '<option value="">— Nenhum —</option>' + opts;
 }
 
 async function addBC() {
-  const nome = document.getElementById('bc-nome').value.trim();
+  const nome   = document.getElementById('bc-nome').value.trim();
   if (!nome) return alert('Nome obrigatório');
   const idsRaw = document.getElementById('bc-advids').value.trim();
   const advertiser_ids = idsRaw ? idsRaw.split('\n').map(s=>s.trim()).filter(Boolean) : [];
   await api('POST', '/api/bcs', { nome, advertiser_ids });
   closeM('m-add-bc');
-  document.getElementById('bc-nome').value = '';
+  document.getElementById('bc-nome').value  = '';
   document.getElementById('bc-advids').value = '';
   await loadBCs();
 }
@@ -856,14 +815,8 @@ function verIds(bcId) {
   alert(`IDs de ${bc.nome}:\n\n${(bc.advertiser_ids||[]).join('\n')||'(nenhum)'}`);
 }
 
-// ══════════════════════════════════════════════════════
-// OAUTH
-// ══════════════════════════════════════════════════════
-function startOAuth(bcId) {
-  oauthBcId = bcId;
-  document.getElementById('oauth-code').value = '';
-  openM('m-oauth');
-}
+// ── OAUTH ──────────────────────────────────────────────────────────────
+function startOAuth(bcId) { oauthBcId = bcId; document.getElementById('oauth-code').value = ''; openM('m-oauth'); }
 async function abrirOAuth() {
   if (!oauthBcId) return;
   const r = await api('GET', `/oauth/url?bc_id=${oauthBcId}`);
@@ -873,41 +826,89 @@ async function trocarToken() {
   const authCode = document.getElementById('oauth-code').value.trim();
   if (!authCode) return alert('Cole o auth_code primeiro');
   const r = await api('POST', '/api/oauth/exchange', { auth_code: authCode, bc_id: oauthBcId });
-  if (r.ok) {
-    closeM('m-oauth');
-    alert(`✓ Token salvo! ${r.advertiser_count} contas.`);
-    await loadBCs();
-  } else alert('Erro: ' + r.error);
+  if (r.ok) { closeM('m-oauth'); alert(`✓ Token salvo! ${r.advertiser_count} contas.`); await loadBCs(); }
+  else alert('Erro: ' + r.error);
 }
 
-// ══════════════════════════════════════════════════════
-// CAMPANHAS OVERVIEW
-// ══════════════════════════════════════════════════════
+// ── CAMPANHAS ATIVAS — OVERVIEW ASSÍNCRONO ─────────────────────────────
 function populateOvBC() {
-  const sel = document.getElementById('ov-bc-sel');
-  sel.innerHTML = '<option value="">— Selecione BC —</option>' +
-    bcs.map(b => `<option value="${b.id}">${esc(b.nome)}</option>`).join('');
+  // renderBCSelects já populou ov-bc-sel, não precisa fazer nada
 }
 
 async function loadOverview() {
   const bcId = document.getElementById('ov-bc-sel').value;
   if (!bcId) return;
-  const card = document.getElementById('ov-card');
-  card.innerHTML = '<div class="empty"><span class="empty-icon" style="animation:spin 1s linear infinite;display:inline-block">⟳</span><div class="empty-text">Carregando campanhas...</div></div>';
 
-  const r = await api('GET', `/api/bcs/${bcId}/campaigns-overview`);
+  // Cancela polling anterior se houver
+  if (ovPoll) { clearInterval(ovPoll); ovPoll = null; }
+
+  const card    = document.getElementById('ov-card');
+  const progWrap = document.getElementById('ov-prog-wrap');
+  const progBar  = document.getElementById('ov-prog-bar');
+  const progCount = document.getElementById('ov-prog-count');
+  const progLast  = document.getElementById('ov-prog-last');
+
+  card.innerHTML = '<div class="empty"><span class="empty-icon" style="display:inline-block;animation:spin 1s linear infinite">⟳</span><div class="empty-text">Iniciando scan...</div></div>';
+  progWrap.style.display = '';
+  progBar.style.width    = '0%';
+  progCount.innerText    = '0 / 0';
+  progLast.innerText     = '';
+
+  // Dispara o job no backend (POST agora)
+  const r = await api('POST', `/api/bcs/${bcId}/campaigns-overview`);
   if (!r.ok) {
+    progWrap.style.display = 'none';
     card.innerHTML = `<div class="empty"><span class="empty-icon">❌</span><div class="empty-text">${esc(r.error)}</div></div>`;
     return;
   }
-  document.getElementById('n-camps').innerText = r.total;
 
-  if (!r.campaigns.length) {
-    card.innerHTML = '<div class="empty"><span class="empty-icon">✅</span><div class="empty-text">Nenhuma campanha ativa neste BC</div></div>';
+  ovJobId  = r.job_id;
+  ovOffset = 0;
+
+  // Polling a cada 1.5s
+  ovPoll = setInterval(async () => {
+    try {
+      const j = await api('GET', `/api/overview-job/${ovJobId}?offset=${ovOffset}`);
+      if (!j.ok) { clearInterval(ovPoll); return; }
+
+      ovOffset += j.logs.length;
+
+      // Atualiza barra de progresso
+      const pct = j.total > 0 ? Math.round(j.done / j.total * 100) : 0;
+      progBar.style.width  = pct + '%';
+      progCount.innerText  = `${j.done} / ${j.total}`;
+
+      // Último log como status
+      if (j.logs.length) {
+        progLast.innerText = j.logs[j.logs.length - 1].msg;
+      }
+
+      // Renderiza campanhas encontradas até agora (parcial)
+      renderCampanhas(j.campaigns, bcId);
+
+      if (j.status === 'done') {
+        clearInterval(ovPoll);
+        ovPoll = null;
+        progWrap.style.display = 'none';
+        document.getElementById('n-camps').innerText = j.campaigns.length;
+
+        if (!j.campaigns.length) {
+          card.innerHTML = '<div class="empty"><span class="empty-icon">✅</span><div class="empty-text">Nenhuma campanha ativa neste BC</div></div>';
+        }
+      }
+    } catch(e) {
+      console.error('polling error', e);
+    }
+  }, 1500);
+}
+
+function renderCampanhas(campaigns, bcId) {
+  const card = document.getElementById('ov-card');
+  if (!campaigns || !campaigns.length) {
+    card.innerHTML = '<div class="empty"><span class="empty-icon" style="display:inline-block;animation:spin 1s linear infinite">⟳</span><div class="empty-text">Buscando campanhas...</div></div>';
     return;
   }
-
-  const rows = r.campaigns.map(c => `
+  card.innerHTML = campaigns.map(c => `
     <div class="camp-row" id="cr-${c.campaign_id}">
       <div class="camp-info">
         <div class="camp-name">${esc(c.campaign_name)}</div>
@@ -921,8 +922,6 @@ async function loadOverview() {
         </button>
       </div>
     </div>`).join('');
-
-  card.innerHTML = rows;
 }
 
 async function disableOne(bcId, advId, campId, btn) {
@@ -931,9 +930,9 @@ async function disableOne(bcId, advId, campId, btn) {
     { advertiser_id: advId, campaign_id: campId });
   if (r.ok) {
     const row = document.getElementById(`cr-${campId}`);
-    if (row) { row.style.opacity='.4'; row.style.pointerEvents='none'; }
+    if (row) { row.style.opacity='.3'; row.style.pointerEvents='none'; }
     const n = document.getElementById('n-camps');
-    n.innerText = Math.max(0, parseInt(n.innerText||0)-1);
+    n.innerText = Math.max(0, parseInt(n.innerText||0) - 1);
   } else {
     btn.disabled = false; btn.innerText = '⏹ Pausar';
     alert('Erro: ' + r.error);
@@ -948,14 +947,14 @@ async function disableAll() {
   const wrap = document.getElementById('ov-log-wrap');
   wrap.style.display = '';
   document.getElementById('ov-log').innerHTML = '';
-  ovOffset = 0;
+  ovDisableOffset = 0;
 
   const r = await api('POST', `/api/bcs/${bcId}/disable-all-campaigns`);
   if (!r.ok) { alert('Erro: ' + r.error); wrap.style.display='none'; return; }
-  ovJobId = r.job_id;
 
-  ovPoll = setInterval(async () => {
-    const j = await api('GET', `/api/job/${ovJobId}/logs?offset=${ovOffset}`);
+  const disableJobId = r.job_id;
+  ovDisablePoll = setInterval(async () => {
+    const j = await api('GET', `/api/job/${disableJobId}/logs?offset=${ovDisableOffset}`);
     const logEl = document.getElementById('ov-log');
     j.logs.forEach(l => {
       const d = document.createElement('div');
@@ -964,40 +963,33 @@ async function disableAll() {
       logEl.appendChild(d);
     });
     logEl.scrollTop = logEl.scrollHeight;
-    ovOffset += j.logs.length;
-    if (j.status==='done') {
-      clearInterval(ovPoll);
-      document.getElementById('ov-live').style.background='var(--green)';
-      document.getElementById('ov-live').style.animation='none';
-      await loadOverview();
+    ovDisableOffset += j.logs.length;
+    if (j.status === 'done') {
+      clearInterval(ovDisablePoll);
+      document.getElementById('ov-live').style.background = 'var(--green)';
+      document.getElementById('ov-live').style.animation  = 'none';
+      // Recarrega overview após desativar
+      setTimeout(() => { wrap.style.display='none'; loadOverview(); }, 1500);
     }
   }, 1500);
 }
 
-// ══════════════════════════════════════════════════════
-// CAMPANHAS — FORM
-// ══════════════════════════════════════════════════════
-function selObj(btn) {
-  document.querySelectorAll('#c-obj .tgl').forEach(b=>b.classList.remove('on'));
-  btn.classList.add('on');
-}
-function selGender(btn) {
-  document.querySelectorAll('#c-gender .tgl').forEach(b=>b.classList.remove('on'));
-  btn.classList.add('on');
-}
+// ── CAMPANHAS FORM ─────────────────────────────────────────────────────
+function selObj(btn)    { document.querySelectorAll('#c-obj .tgl').forEach(b=>b.classList.remove('on'));    btn.classList.add('on'); }
+function selGender(btn) { document.querySelectorAll('#c-gender .tgl').forEach(b=>b.classList.remove('on')); btn.classList.add('on'); }
 
 function onCampBC() {
   const bcId = parseInt(document.getElementById('c-bc').value);
   const bc   = bcs.find(b=>b.id===bcId);
   const listEl = document.getElementById('c-adv-list');
   if (!bc || !(bc.advertiser_ids||[]).length) {
-    listEl.innerHTML='<div class="adv-item" style="color:var(--text3)">Sem contas — sincronize o BC primeiro</div>';
-    document.getElementById('c-sel-count').innerText='0 selecionadas';
+    listEl.innerHTML = '<div class="adv-item" style="color:var(--text3)">Sem contas — sincronize o BC primeiro</div>';
+    document.getElementById('c-sel-count').innerText = '0 selecionadas';
     return;
   }
   const accounts = bc.accounts || {};
   listEl.innerHTML = bc.advertiser_ids.map(id => {
-    const name = accounts[id]?.name || id;
+    const name  = accounts[id]?.name || id;
     const camps = accounts[id]?.campaigns_active ?? '';
     return `<label class="adv-item">
       <input type="checkbox" class="adv-chk" value="${id}" checked onchange="updSelCount()">
@@ -1012,10 +1004,7 @@ function updSelCount() {
   const n = document.querySelectorAll('.adv-chk:checked').length;
   document.getElementById('c-sel-count').innerText = n + ' selecionadas';
 }
-function selAll(v) {
-  document.querySelectorAll('.adv-chk').forEach(c=>c.checked=v);
-  updSelCount();
-}
+function selAll(v) { document.querySelectorAll('.adv-chk').forEach(c=>c.checked=v); updSelCount(); }
 
 async function loadPixels() {
   const bcId = document.getElementById('c-bc').value;
@@ -1023,16 +1012,15 @@ async function loadPixels() {
   const r = await api('GET', `/api/pixels/${bcId}`);
   if (r.ok && r.pixels.length) {
     const sel = document.getElementById('c-pixel-sel');
-    sel.style.display='';
-    sel.innerHTML='<option value="">— Selecione —</option>'+
+    sel.style.display = '';
+    sel.innerHTML = '<option value="">— Selecione —</option>' +
       r.pixels.map(p=>`<option value="${p.id}">${esc(p.name)} (${p.id})</option>`).join('');
   } else alert(r.error||'Nenhum pixel');
 }
 
 function toggleSW(id, key) {
-  const el = document.getElementById(id);
   window[key] = !window[key];
-  el.classList.toggle('on', window[key]);
+  document.getElementById(id).classList.toggle('on', window[key]);
   const lbl = document.getElementById(id+'-lbl');
   if (lbl) lbl.innerText = window[key] ? 'Ativado — TikTok distribui automaticamente' : 'Desativado';
 }
@@ -1049,34 +1037,34 @@ async function startCamp() {
 
   const payload = {
     bc_id: bcId, objetivo, budget_optimize_on: window._cbo,
-    campaign_name  : document.getElementById('c-nome').value || 'TikAuto',
-    budget         : parseFloat(document.getElementById('c-budget').value)||20,
-    num_adgroups   : parseInt(document.getElementById('c-adgroups').value)||1,
-    adgroup_name   : document.getElementById('c-agname').value||'AdGroup',
-    pixel_id       : document.getElementById('c-pixel').value,
-    optimization_event: document.getElementById('c-optevt').value,
-    paises, idade_min: parseInt(document.getElementById('c-amin').value),
-    idade_max      : parseInt(document.getElementById('c-amax').value),
+    campaign_name      : document.getElementById('c-nome').value || 'TikAuto',
+    budget             : parseFloat(document.getElementById('c-budget').value)||20,
+    num_adgroups       : parseInt(document.getElementById('c-adgroups').value)||1,
+    adgroup_name       : document.getElementById('c-agname').value||'AdGroup',
+    pixel_id           : document.getElementById('c-pixel').value,
+    optimization_event : document.getElementById('c-optevt').value,
+    paises, idade_min  : parseInt(document.getElementById('c-amin').value),
+    idade_max          : parseInt(document.getElementById('c-amax').value),
     gender,
-    post_code      : document.getElementById('c-authcode').value,
-    item_id        : document.getElementById('c-item').value,
-    post_type      : document.getElementById('c-ptype').value,
-    identity_id    : document.getElementById('c-identity').value,
-    product_url    : document.getElementById('c-url').value,
-    cta            : document.getElementById('c-cta').value,
-    advertiser_ids : advIds,
+    post_code          : document.getElementById('c-authcode').value,
+    item_id            : document.getElementById('c-item').value,
+    post_type          : document.getElementById('c-ptype').value,
+    identity_id        : document.getElementById('c-identity').value,
+    product_url        : document.getElementById('c-url').value,
+    cta                : document.getElementById('c-cta').value,
+    advertiser_ids     : advIds,
   };
 
   const r = await api('POST', '/api/criar-campanhas', payload);
   if (!r.ok) return alert('Erro: ' + r.error);
 
   campJobId = r.job_id; campOffset = 0;
-  document.getElementById('btn-camp').disabled = true;
+  document.getElementById('btn-camp').disabled          = true;
   document.getElementById('btn-stop-camp').style.display = '';
-  document.getElementById('c-prog-wrap').style.display = '';
-  document.getElementById('c-live').style.background = 'var(--red)';
-  document.getElementById('log-camp').innerHTML = '';
-  campPoll = setInterval(()=>pollJob('camp'), 1500);
+  document.getElementById('c-prog-wrap').style.display   = '';
+  document.getElementById('c-live').style.background     = 'var(--red)';
+  document.getElementById('log-camp').innerHTML           = '';
+  campPoll = setInterval(() => pollJob('camp'), 1500);
 }
 
 function stopJob(tipo) {
@@ -1085,7 +1073,7 @@ function stopJob(tipo) {
 }
 
 async function pollJob(tipo) {
-  const jobId  = tipo==='camp' ? campJobId : null;
+  const jobId  = tipo==='camp' ? campJobId  : null;
   const offset = tipo==='camp' ? campOffset : 0;
   if (!jobId) return;
   const r = await api('GET', `/api/job/${jobId}/logs?offset=${offset}`);
@@ -1100,23 +1088,21 @@ async function pollJob(tipo) {
   campOffset += r.logs.length;
 
   const pct = r.total>0 ? Math.round(r.done/r.total*100) : 0;
-  document.getElementById('c-prog-txt').innerText=`${r.done} / ${r.total}`;
-  document.getElementById('c-prog-bar').style.width=pct+'%';
-  document.getElementById('c-suc').innerText=r.sucesso;
-  document.getElementById('c-fal').innerText=r.falha;
+  document.getElementById('c-prog-txt').innerText = `${r.done} / ${r.total}`;
+  document.getElementById('c-prog-bar').style.width = pct+'%';
+  document.getElementById('c-suc').innerText = r.sucesso;
+  document.getElementById('c-fal').innerText = r.falha;
 
   if (r.status==='done') {
     clearInterval(campPoll);
-    document.getElementById('c-live').style.background='var(--green)';
-    document.getElementById('c-live').style.animation='none';
-    document.getElementById('btn-camp').disabled=false;
-    document.getElementById('btn-stop-camp').style.display='none';
+    document.getElementById('c-live').style.background = 'var(--green)';
+    document.getElementById('c-live').style.animation  = 'none';
+    document.getElementById('btn-camp').disabled           = false;
+    document.getElementById('btn-stop-camp').style.display = 'none';
   }
 }
 
-// ══════════════════════════════════════════════════════
-// SPARK POSTS
-// ══════════════════════════════════════════════════════
+// ── SPARK POSTS ────────────────────────────────────────────────────────
 async function loadSparks() {
   sparks = await api('GET', '/api/sparks');
   document.getElementById('n-sparks').innerText = sparks.length;
@@ -1150,31 +1136,29 @@ function useSpark(id) {
   document.getElementById('c-item').value = s.value;
   if (s.identity_id) document.getElementById('c-identity').value = s.identity_id;
   goto('campanhas', document.querySelector('.nav-item:nth-child(7)'));
-  setTimeout(()=>alert('✓ Spark Post carregado no formulário!'), 200);
+  setTimeout(() => alert('✓ Spark Post carregado no formulário!'), 200);
 }
 
 function selSparkType(btn) {
   document.querySelectorAll('#spark-type-tgl .tgl').forEach(b=>b.classList.remove('on'));
   btn.classList.add('on');
   const isLink = btn.dataset.val === 'link';
-  document.getElementById('sp-val-lbl').innerText = isLink ? 'URL do Link' : 'Link ou Item ID do Post';
-  document.getElementById('sp-val-hint').innerText = isLink
-    ? 'Cole a URL de destino do link.'
-    : 'Cole o link do vídeo TikTok — o Item ID será extraído automaticamente.';
+  document.getElementById('sp-val-lbl').innerText    = isLink ? 'URL do Link' : 'Link ou Item ID do Post';
+  document.getElementById('sp-val-hint').innerText   = isLink ? 'Cole a URL de destino.' : 'Cole o link do vídeo TikTok — o Item ID será extraído automaticamente.';
   document.getElementById('sp-identity-wrap').style.display = isLink ? 'none' : '';
 }
 
 async function addSpark() {
-  const type      = document.querySelector('#spark-type-tgl .tgl.on')?.dataset.val || 'post';
-  const label     = document.getElementById('sp-label').value.trim();
-  const value     = document.getElementById('sp-val').value.trim();
-  const identity  = document.getElementById('sp-identity').value.trim();
-  const bc_id     = document.getElementById('sp-bc').value;
+  const type     = document.querySelector('#spark-type-tgl .tgl.on')?.dataset.val || 'post';
+  const label    = document.getElementById('sp-label').value.trim();
+  const value    = document.getElementById('sp-val').value.trim();
+  const identity = document.getElementById('sp-identity').value.trim();
+  const bc_id    = document.getElementById('sp-bc').value;
   if (!value) return alert('Informe o link ou ID');
   const r = await api('POST', '/api/sparks', { type, label, value, identity_id: identity, bc_id });
   if (r.ok) {
     closeM('m-add-spark');
-    ['sp-label','sp-val','sp-identity'].forEach(id=>document.getElementById(id).value='');
+    ['sp-label','sp-val','sp-identity'].forEach(id => document.getElementById(id).value='');
     await loadSparks();
   } else alert('Erro: ' + r.error);
 }
@@ -1185,35 +1169,33 @@ async function delSpark(id) {
   await loadSparks();
 }
 
-// ══════════════════════════════════════════════════════
-// STATS + JOBS
-// ══════════════════════════════════════════════════════
+// ── STATS + JOBS ───────────────────────────────────────────────────────
 async function loadStats() {
   const r = await api('GET', '/api/stats');
-  document.getElementById('d-bcs').innerText     = r.total_bcs;
-  document.getElementById('d-conn').innerText    = r.bcs_conectados;
-  document.getElementById('d-contas').innerText  = r.total_contas;
-  document.getElementById('d-sparks').innerText  = r.total_sparks||0;
-  document.getElementById('d-suc').innerText     = r.camp_sucesso;
-  document.getElementById('d-fal').innerText     = r.camp_falha;
-  document.getElementById('tp-bcs').innerText    = r.total_bcs;
+  document.getElementById('d-bcs').innerText    = r.total_bcs;
+  document.getElementById('d-conn').innerText   = r.bcs_conectados;
+  document.getElementById('d-contas').innerText = r.total_contas;
+  document.getElementById('d-sparks').innerText = r.total_sparks||0;
+  document.getElementById('d-suc').innerText    = r.camp_sucesso;
+  document.getElementById('d-fal').innerText    = r.camp_falha;
+  document.getElementById('tp-bcs').innerText   = r.total_bcs;
   document.getElementById('tp-contas').innerText = r.total_contas;
-  if (r.rodando>0) {
-    document.getElementById('tp-run-pill').style.display='';
-    document.getElementById('tp-run').innerText=r.rodando;
+  if (r.rodando > 0) {
+    document.getElementById('tp-run-pill').style.display = '';
+    document.getElementById('tp-run').innerText = r.rodando;
   } else {
-    document.getElementById('tp-run-pill').style.display='none';
+    document.getElementById('tp-run-pill').style.display = 'none';
   }
 }
 
 async function loadRecentJobs() {
   const jobs = await api('GET', '/api/jobs');
-  const card = document.getElementById('dash-jobs-card');
+  const card  = document.getElementById('dash-jobs-card');
   if (!jobs.length) {
-    card.innerHTML='<div class="empty"><span class="empty-icon">⚡</span><div class="empty-text">Nenhum job ainda</div></div>';
+    card.innerHTML = '<div class="empty"><span class="empty-icon">⚡</span><div class="empty-text">Nenhum job ainda</div></div>';
     return;
   }
-  const rows = [...jobs].reverse().slice(0,6).map(j=>`
+  card.innerHTML = [...jobs].reverse().slice(0,6).map(j=>`
     <div style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--line)">
       <span class="mono">${j.id}</span>
       <span style="flex:1;font-size:12px">${j.tipo==='criar_campanhas'?'📣 Campanhas':'👤 Contas'} · ${j.objetivo||''}</span>
@@ -1222,14 +1204,13 @@ async function loadRecentJobs() {
       <span style="color:var(--red);font-family:var(--mono);font-size:11px">${j.falha??'—'}</span>
       <span style="color:var(--text3);font-size:11px">${(j.criado_em||'').slice(0,16)}</span>
     </div>`).join('');
-  card.innerHTML = rows;
 }
 
 async function loadJobs() {
-  const jobs = await api('GET', '/api/jobs');
+  const jobs  = await api('GET', '/api/jobs');
   const tbody = document.getElementById('jobs-tbody');
   if (!jobs.length) {
-    tbody.innerHTML='<tr><td colspan="8"><div class="empty"><span class="empty-icon">📋</span><div class="empty-text">Nenhum job</div></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8"><div class="empty"><span class="empty-icon">📋</span><div class="empty-text">Nenhum job</div></div></td></tr>';
     return;
   }
   tbody.innerHTML = [...jobs].reverse().map(j=>`<tr>
@@ -1246,7 +1227,7 @@ async function loadJobs() {
 
 async function verJobLog(id) {
   document.getElementById('m-job-id').innerText = id;
-  const r = await api('GET', `/api/job/${id}/logs`);
+  const r    = await api('GET', `/api/job/${id}/logs`);
   const body = document.getElementById('m-log-body');
   body.innerHTML = r.logs.map(l=>
     `<div class="ll"><span class="lt">${l.ts}</span><span class="lm ${l.level}">${esc(l.msg)}</span></div>`
@@ -1255,31 +1236,23 @@ async function verJobLog(id) {
   openM('m-job-log');
 }
 
-// ══════════════════════════════════════════════════════
-// MODAL
-// ══════════════════════════════════════════════════════
+// ── MODAL ──────────────────────────────────────────────────────────────
 function openM(id)  { document.getElementById(id).classList.add('open') }
 function closeM(id) { document.getElementById(id).classList.remove('open') }
-document.querySelectorAll('.overlay').forEach(o=>{
-  o.addEventListener('click', e=>{ if(e.target===o) o.classList.remove('open') });
+document.querySelectorAll('.overlay').forEach(o => {
+  o.addEventListener('click', e => { if(e.target===o) o.classList.remove('open'); });
 });
 
-// ══════════════════════════════════════════════════════
-// UTILS
-// ══════════════════════════════════════════════════════
+// ── UTILS ──────────────────────────────────────────────────────────────
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
 
-// ══════════════════════════════════════════════════════
-// OAUTH REDIRECT
-// ══════════════════════════════════════════════════════
+// ── OAUTH REDIRECT ─────────────────────────────────────────────────────
 const os = sessionStorage.getItem('os');
 const oe = sessionStorage.getItem('oe');
 if (os) { sessionStorage.removeItem('os'); setTimeout(()=>alert(`✓ OAuth OK! ${os} contas.`),400) }
 if (oe) { sessionStorage.removeItem('oe'); setTimeout(()=>alert('⚠ Erro OAuth: '+oe),400) }
 
-// ══════════════════════════════════════════════════════
-// INIT
-// ══════════════════════════════════════════════════════
+// ── INIT ───────────────────────────────────────────────────────────────
 (async () => {
   await loadBCs();
   await loadSparks();
