@@ -7,6 +7,7 @@ from flask import Flask, render_template, jsonify, request, redirect, session
 import requests
 import json
 import os
+import re
 import time
 import threading
 import uuid
@@ -61,6 +62,56 @@ def add_log(job_id, msg, level='info'):
     with open(log_file, 'a', encoding='utf-8') as f:
         f.write(json.dumps(entry, ensure_ascii=False) + '\n')
 
+# ══════════════════════════════════════════════════════════════════════
+# EXTRAÇÃO DE ITEM_ID A PARTIR DE URL DO TIKTOK
+# ══════════════════════════════════════════════════════════════════════
+
+def extract_item_id_from_url(text):
+    """
+    Extrai o item_id numérico de qualquer formato de link TikTok.
+    Exemplos suportados:
+      - https://www.tiktok.com/@user/video/1234567890123456789
+      - https://vm.tiktok.com/ZMxxxxxx/   (URL curta — resolve redirect)
+      - https://vt.tiktok.com/ZMxxxxxx/
+      - 1234567890123456789  (já é o ID direto)
+    Retorna string com o item_id ou None se não encontrar.
+    """
+    if not text:
+        return None
+
+    text = text.strip()
+
+    # Se já for um número puro, retorna direto
+    if re.match(r'^\d{10,25}$', text):
+        return text
+
+    # Padrão: /video/NUMEROID na URL
+    m = re.search(r'/video/(\d{10,25})', text)
+    if m:
+        return m.group(1)
+
+    # URL curta (vm.tiktok.com ou vt.tiktok.com) — resolve redirect
+    if 'vm.tiktok.com' in text or 'vt.tiktok.com' in text:
+        try:
+            r = requests.head(text, allow_redirects=True, timeout=10)
+            final_url = r.url
+            m = re.search(r'/video/(\d{10,25})', final_url)
+            if m:
+                return m.group(1)
+        except:
+            pass
+
+    return None
+
+@app.route('/api/resolve-item-id', methods=['POST'])
+def resolve_item_id():
+    """Endpoint para o frontend testar a extração de item_id via URL."""
+    text = request.json.get('text', '').strip()
+    item_id = extract_item_id_from_url(text)
+    if item_id:
+        return jsonify({'ok': True, 'item_id': item_id})
+    return jsonify({'ok': False, 'error': 'Não foi possível extrair o item_id. Cole o link completo do post ou o ID numérico diretamente.'})
+
 # ── Helpers API TikTok ─────────────────────────────────────────────────
 def tiktok_get(endpoint, token, advertiser_id, params=None):
     url = f"{TIKTOK_API_BASE}/{endpoint}/"
@@ -101,9 +152,7 @@ def get_advertiser_ids(token):
 
 # ── Mapeamentos da API TikTok ──────────────────────────────────────────
 
-# Configuração por objetivo: optimization_goal + billing_event corretos
 OBJETIVO_CONFIG = {
-    # VIDEO_VIEW depreciado na v1.3 — usar ENGAGED_VIEW (oficial)
     'VIDEO_VIEWS': {
         'objective_type'   : 'VIDEO_VIEWS',
         'optimization_goal': 'ENGAGED_VIEW',
@@ -146,7 +195,6 @@ OBJETIVO_CONFIG = {
     },
 }
 
-# IDs de localização TikTok (GeoName IDs)
 LOCATION_MAP = {
     'BR': 3469034,  'PT': 2264397,  'US': 6252001,
     'MX': 3996063,  'AR': 3865483,  'CO': 3686110,
@@ -157,7 +205,7 @@ LOCATION_MAP = {
 
 def get_location_ids(paises):
     ids = [str(LOCATION_MAP[p]) for p in paises if p in LOCATION_MAP]
-    return ids if ids else ['3469034']  # Brasil como fallback
+    return ids if ids else ['3469034']
 
 # ══════════════════════════════════════════════════════════════════════
 # ROTAS PRINCIPAIS
@@ -169,7 +217,7 @@ def index():
 
 @app.route('/api/version')
 def version():
-    return jsonify({'version': 'v2-debug-241'})
+    return jsonify({'version': 'v3-url-extract-241'})
 
 # ── OAuth ──────────────────────────────────────────────────────────────
 @app.route('/oauth/url')
@@ -375,7 +423,6 @@ def criar_campanhas():
     pixel_id     = d.get('pixel_id', '')
     optimization = d.get('optimization_event', 'PURCHASE')
     post_code    = d.get('post_code', '')
-    item_id_input= d.get('item_id', '').strip()
     post_type    = d.get('post_type', 'SINGLE_VIDEO')
     identity_id  = d.get('identity_id', '')
     product_url  = d.get('product_url', '')
@@ -386,6 +433,11 @@ def criar_campanhas():
     cbo_on        = bool(d.get('budget_optimize_on', False))
     campaign_name = d.get('campaign_name', 'TikAuto')
     adgroup_name  = d.get('adgroup_name', 'AdGroup')
+
+    # ── Resolução do item_id a partir de link ou ID direto ──────────────
+    # Aceita: link completo, URL curta ou número direto
+    raw_item_input = d.get('item_id', '').strip()
+    item_id_input  = extract_item_id_from_url(raw_item_input) if raw_item_input else ''
 
     token = get_token_for_bc(bc_id)
     if not token:
@@ -401,7 +453,6 @@ def criar_campanhas():
 
     obj_cfg = OBJETIVO_CONFIG.get(objetivo, OBJETIVO_CONFIG['VIDEO_VIEWS'])
 
-    # Faixas de idade TikTok
     age_map = {
         13: 'AGE_13_17', 18: 'AGE_18_24', 25: 'AGE_25_34',
         35: 'AGE_35_44', 45: 'AGE_45_54', 55: 'AGE_55_100'
@@ -429,6 +480,8 @@ def criar_campanhas():
 
     def run():
         add_log(job_id, f'Iniciando campanhas em {total} contas — objetivo: {objetivo}', 'info')
+        if item_id_input:
+            add_log(job_id, f'Item ID resolvido: {item_id_input} (entrada: "{raw_item_input}")', 'info')
 
         for idx, adv_id in enumerate(adv_ids):
             if running_jobs[job_id]['stop']:
@@ -441,7 +494,6 @@ def criar_campanhas():
 
                 # ── 1. Criar Campanha ────────────────────────────────
                 if cbo_on:
-                    # CBO ativado: orçamento na campanha, TikTok distribui entre ad groups
                     camp_payload = {
                         'advertiser_id'    : adv_id,
                         'campaign_name'    : f"{campaign_name}_{ts}",
@@ -453,7 +505,6 @@ def criar_campanhas():
                         'special_industries': [],
                     }
                 else:
-                    # CBO desativado: campanha ilimitada, orçamento fica no ad group
                     camp_payload = {
                         'advertiser_id'    : adv_id,
                         'campaign_name'    : f"{campaign_name}_{ts}",
@@ -495,7 +546,6 @@ def criar_campanhas():
                         'operation_status' : 'ENABLE',
                     }
 
-                    # Pixel — só para CONVERSIONS
                     if objetivo == 'CONVERSIONS' and pixel_id:
                         ag_payload['pixel_id']           = pixel_id
                         ag_payload['optimization_event'] = optimization
@@ -513,17 +563,17 @@ def criar_campanhas():
                 if not adgroup_ids:
                     raise Exception("Nenhum Ad Group criado com sucesso")
 
-                # ── 3. Resolver item_id e identity a partir do auth_code (Spark Ad) ──
+                # ── 3. Resolver item_id ──────────────────────────────
                 resolved_identity_id   = identity_id
                 resolved_identity_type = 'TT_USER'
-                resolved_item_id       = item_id_input  # usa item_id manual se fornecido
+                resolved_item_id       = item_id_input  # já extraído da URL acima
 
                 if resolved_item_id:
-                    add_log(job_id, f'  ✓ Item ID manual: {resolved_item_id}', 'info')
+                    add_log(job_id, f'  ✓ Item ID: {resolved_item_id}', 'info')
                 elif not post_code:
-                    add_log(job_id, '  ⚠ Sem código de post nem item_id — ad será pulado', 'warn')
+                    add_log(job_id, '  ⚠ Sem link/item_id nem auth_code — ad será pulado', 'warn')
                 else:
-                    # Tenta /tt_video/info/ primeiro (mais direto)
+                    # Tenta /tt_video/info/ com auth_code
                     safe_code = post_code.replace('+', '%2B')
                     r_info = tiktok_get('tt_video/info', token, adv_id,
                                         {'auth_code': safe_code})
@@ -536,7 +586,7 @@ def criar_campanhas():
                         add_log(job_id,
                             f'  ✓ Post info: item_id={resolved_item_id} | identity={resolved_identity_id}', 'info')
                     else:
-                        # Fallback: busca via /tt_video/list/ e filtra pelo auth_code
+                        # Fallback: busca via /tt_video/list/
                         add_log(job_id, '  ↻ Buscando post via lista (fallback)...', 'info')
                         found = False
                         page  = 1
@@ -567,7 +617,7 @@ def criar_campanhas():
                         if not found:
                             add_log(job_id, '  ✗ Post não encontrado na lista — verifique o auth_code', 'error')
 
-                # fallback: busca identity na conta se ainda não tiver
+                # Fallback: busca identity na conta se ainda não tiver
                 if not resolved_identity_id:
                     for id_type in ['TT_USER', 'AUTH_CODE', 'BC_AUTH_TT']:
                         r_ident = tiktok_get('identity/get', token, adv_id,
@@ -584,10 +634,10 @@ def criar_campanhas():
                     if not resolved_identity_id:
                         add_log(job_id, '  ⚠ Nenhum identity encontrado para esta conta', 'warn')
 
-                # ── 4. Criar Ad (Spark Ad) ───────────────────────────────
+                # ── 4. Criar Ad (Spark Ad) ───────────────────────────
                 for ag_id in adgroup_ids:
                     if not resolved_item_id:
-                        add_log(job_id, '  ⚠ Ad pulado: item_id não resolvido (verifique o auth_code)', 'warn')
+                        add_log(job_id, '  ⚠ Ad pulado: item_id não resolvido', 'warn')
                         break
                     if not resolved_identity_id:
                         add_log(job_id, '  ⚠ Ad pulado: sem identity_id', 'warn')
@@ -657,10 +707,8 @@ def debug_identity(bc_id):
     token = get_token_for_bc(bc_id)
     if not token:
         return jsonify({'error': 'sem token'})
-    bcs = get_bcs()
-    bc = next((b for b in bcs if b['id'] == bc_id), None)
-    adv_id = '7608267784702853138'  # conta de teste
-    results = {}
+    adv_id      = '7608267784702853138'
+    results     = {}
     identity_id = '7610243151726575617'
     item_id     = '7610455329033227541'
     bc_id_str   = '7607905792628621313'
@@ -678,7 +726,7 @@ def debug_identity(bc_id):
             creative['identity_authorized_bc_id'] = bc_id_str
         payload = {
             'advertiser_id': adv_id,
-            'adgroup_id'   : '1858021589796114',  # ad group existente
+            'adgroup_id'   : '1858021589796114',
             'creatives'    : [creative],
         }
         r = tiktok_post('ad/create', token, payload)
