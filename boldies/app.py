@@ -818,8 +818,8 @@ def run_criar_campanhas(profile_id, post_code, simultaneas, bc_id, bc_nome, key)
 # ─── TikTok API helpers ───────────────────────────────────────────────────────
 TIKTOK_API   = 'https://business-api.tiktok.com/open_api/v1.3'
 TIKTOK_APP_ID     = os.environ.get('TIKTOK_APP_ID', '7610282489889685520')
-TIKTOK_APP_SECRET = os.environ.get('TIKTOK_APP_SECRET', '')
-TIKTOK_REDIRECT   = os.environ.get('TIKTOK_REDIRECT', 'https://boldies.site/oauth/callback')
+TIKTOK_APP_SECRET = os.environ.get('TIKTOK_APP_SECRET', 'caf5ddca1ebfc4c434e5ce3b2cd380d4276f771c')
+TIKTOK_REDIRECT = os.environ.get('TIKTOK_REDIRECT', 'https://boldies.site/oauth/callback')
 
 def get_bcs_api():    return load_json('bcs_api.json', [])
 def save_bcs_api(d):  save_json('bcs_api.json', d)
@@ -860,9 +860,12 @@ def oauth_callback():
     auth_code = request.args.get('auth_code')
     state     = request.args.get('state', '')
     error     = request.args.get('error_code')
+    print(">>> OAUTH CALLBACK: auth_code=" + str(auth_code) + " state=" + str(state) + " error=" + str(error))
     if error or not auth_code:
+        print(">>> RETORNANDO SEM TOKEN")
         return render_template('index.html')
     result = _exchange_token(auth_code)
+    print(">>> RESULT: " + str(result))
     if not result.get('ok'):
         return render_template('index.html')
     bc_id = None
@@ -908,15 +911,28 @@ def oauth_exchange():
 
 def _exchange_token(auth_code):
     try:
-        r = req.post(f"{TIKTOK_API}/oauth2/access_token/", json={
-            'app_id': TIKTOK_APP_ID, 'secret': TIKTOK_APP_SECRET,
-            'auth_code': auth_code, 'grant_type': 'authorization_code'
-        }, timeout=15)
+        payload = {
+            'app_id': TIKTOK_APP_ID,
+            'secret': TIKTOK_APP_SECRET,
+            'auth_code': auth_code,
+            'grant_type': 'authorization_code'
+        }
+        print(f"\n{'='*60}")
+        print(f">>> EXCHANGE TOKEN")
+        print(f">>> app_id: {TIKTOK_APP_ID}")
+        print(f">>> secret: {TIKTOK_APP_SECRET[:10]}...")
+        print(f">>> auth_code: {auth_code[:20]}...")
+        print(f">>> URL: {TIKTOK_API}/oauth2/access_token/")
+        r = req.post(f"{TIKTOK_API}/oauth2/access_token/", json=payload, timeout=15)
+        print(f">>> STATUS HTTP: {r.status_code}")
+        print(f">>> RESPOSTA COMPLETA: {r.text}")
+        print(f"{'='*60}\n")
         d = r.json()
         if d.get('code') == 0:
             return {'ok': True, 'data': d['data']}
         return {'ok': False, 'error': d.get('message', 'Erro API TikTok')}
     except Exception as e:
+        print(f">>> EXCEPTION: {str(e)}")
         return {'ok': False, 'error': str(e)}
 
 # ─── BCs API CRUD ──────────────────────────────────────────────────────────────
