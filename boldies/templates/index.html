@@ -564,38 +564,12 @@ input[type=date].form-input { color-scheme:dark; }
 
           <div class="form-group">
             <label class="form-label">Objetivo da Campanha</label>
-            <select class="form-input" id="camp-objetivo" onchange="toggleConversaoFields()">
+            <select class="form-input" id="camp-objetivo">
               <option value="VIDEO_VIEWS">📹 Visualizações de Vídeo</option>
               <option value="REACH">📢 Alcance</option>
               <option value="TRAFFIC">🔗 Tráfego</option>
               <option value="ENGAGEMENT">💬 Engajamento</option>
-              <option value="CONVERSIONS">🎯 Conversões</option>
             </select>
-          </div>
-
-          <!-- CAMPOS DE CONVERSÃO (aparecem só quando objetivo=CONVERSIONS) -->
-          <div id="camp-conversao-fields" style="display:none">
-            <div class="form-group">
-              <label class="form-label">🎯 Pixel ID</label>
-              <input type="text" class="form-input" id="camp-pixel-id" placeholder="Ex: CXXXXXXXXXXXXXXXX">
-              <div class="tip cyan" style="margin-top:6px">ID do Pixel TikTok vinculado à conta de anúncios.</div>
-            </div>
-            <div class="form-group">
-              <label class="form-label">🔗 URL de Conversão (Landing Page)</label>
-              <input type="url" class="form-input" id="camp-conv-url" placeholder="https://seusite.com/oferta">
-              <div class="tip" style="margin-top:6px">URL para onde o tráfego será direcionado.</div>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Evento de Conversão</label>
-              <select class="form-input" id="camp-conv-event">
-                <option value="PURCHASE">💰 Compra (Purchase)</option>
-                <option value="COMPLETE_REGISTRATION">📋 Cadastro Completo</option>
-                <option value="SUBMIT_FORM">📝 Envio de Formulário</option>
-                <option value="ADD_TO_CART">🛒 Adicionar ao Carrinho</option>
-                <option value="CHECKOUT">💳 Checkout</option>
-                <option value="VIEW_CONTENT">👁 Visualizar Conteúdo</option>
-              </select>
-            </div>
           </div>
 
           <div class="form-group">
@@ -685,11 +659,10 @@ input[type=date].form-input { color-scheme:dark; }
         <select class="form-input" id="visao-bc-sel" style="width:200px" onchange="onVisaoBC()">
           <option value="">Selecione o BC...</option>
         </select>
-        <select class="form-input" id="visao-periodo" style="width:150px">
+        <select class="form-input" id="visao-periodo" style="width:140px">
           <option value="today">Hoje</option>
-          <option value="yesterday">Ontem</option>
-          <option value="7d" selected>Últimos 7 dias</option>
-          <option value="30d">Últimos 30 dias</option>
+          <option value="7d" selected>Ultimos 7 dias</option>
+          <option value="30d">Ultimos 30 dias</option>
           <option value="custom">Personalizado</option>
         </select>
         <div id="visao-datas-custom" style="display:none;gap:6px">
@@ -957,7 +930,7 @@ function updateUptime() {
 setInterval(updateUptime, 1000);
 
 // ── STATE ────────────────────────────────────────────────────────────────────
-let bcs = JSON.parse(localStorage.getItem('tiktok_bcs')||'[]');
+let bcs = [];  // carregado da API
 let relatorios = JSON.parse(localStorage.getItem('tiktok_relatorios')||'[]');
 let deleteIdx = null;
 let contasBcSelecionados = new Set();
@@ -999,16 +972,20 @@ function closeModal() { document.querySelectorAll('.modal-overlay').forEach(m=>m
 function deleteBC(idx) { deleteIdx = idx; document.getElementById('modal-delete').classList.add('open'); }
 function confirmarDelete() {
   if (deleteIdx!==null) {
-    const nome = bcs[deleteIdx].nome;
-    bcs.splice(deleteIdx,1); salvarDados(); updateNavBadge();
-    renderBCTable(); renderDashboard(); renderContasBCList(); renderCampBCList();
-    addLog('BC "'+nome+'" removido','warn'); deleteIdx=null;
+    const bc = bcs[deleteIdx];
+    const nome = bc.nome;
+    // Deleta na API
+    fetch('/api/bcs-api/'+bc.id, {method:'DELETE'})
+      .then(r=>r.json())
+      .then(()=>{ addLog('BC "'+nome+'" removido','warn'); showToast('BC "'+nome+'" removido','warn'); recarregarBCs(); })
+      .catch(()=>{ recarregarBCs(); });
+    deleteIdx=null;
   }
   closeModal();
 }
 // editBC moved to bottom
 function salvarDados() {
-  localStorage.setItem('tiktok_bcs', JSON.stringify(bcs));
+  // BCs são persistidos na API (servidor). Só relatorios ficam local.
   localStorage.setItem('tiktok_relatorios', JSON.stringify(relatorios));
 }
 function updateNavBadge() { const el=document.getElementById('nav-bc-count'); if(el) el.innerText=bcs.length; }
@@ -1309,9 +1286,6 @@ function iniciarEmFila(lista, quantidade, modo) {
           data_fim:document.getElementById('camp-data-fim').value,
           objetivo:document.getElementById('camp-objetivo').value,
           paises:document.getElementById('camp-pais').value,
-          pixel_id:document.getElementById('camp-pixel-id').value.trim(),
-          conv_url:document.getElementById('camp-conv-url').value.trim(),
-          conv_event:document.getElementById('camp-conv-event').value,
           bc_id:bc.id, bc_nome:bc.nome,
           advertiser_ids: campContasSelecionadas[bc.id] ? [...campContasSelecionadas[bc.id]] : []
         };
@@ -1480,7 +1454,7 @@ function atualizarUploadBCSelect() {
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
-updateNavBadge(); renderDashboard(); renderBCTable(); atualizarUploadBCSelect();
+updateNavBadge(); renderDashboard(); atualizarUploadBCSelect();
 loadServerStats(); loadSparkPosts();
 setInterval(pollStatus, 3000);
 setInterval(loadServerStats, 15000);
@@ -1543,6 +1517,18 @@ function verificarOAuth() {
 function loadBcsApi() {
   fetch('/api/bcs-api').then(r=>r.json()).then(list=>{
     bcApiList = list;
+    bcs = list.map(b=>({
+      id: b.id,
+      nome: b.nome,
+      profileId: b.profileId||'',
+      tiktokBcId: b.tiktokBcId||'',
+      status: 'idle',
+      totalContas: 0,
+      campanhasSucesso: 0,
+      campanhasFalha: 0,
+      contasCriadas: 0,
+      token_ok: b.token_ok||false,
+    }));
     // Atualiza select da visao geral
     const sel = document.getElementById('visao-bc-sel');
     if (sel) {
@@ -1551,7 +1537,18 @@ function loadBcsApi() {
         list.map(b=>`<option value="${b.id}">${b.nome}${b.token_ok?' ✓':' (sem token)'}</option>`).join('');
       if (cur) sel.value = cur;
     }
+    updateNavBadge();
+    renderBCTable();
+    renderDashboard();
+    renderContasBCList();
+    renderCampBCList();
+    atualizarUploadBCSelect();
   }).catch(()=>{});
+}
+
+function recarregarBCs() {
+  loadBcsApi();
+  loadServerStats();
 }
 
 // ── SALVAR BC (atualizado com tiktokBcId) ─────────────────────────────────────
@@ -1561,31 +1558,40 @@ function salvarBC() {
   const tiktokId  = document.getElementById('bc-tiktok-id') ? document.getElementById('bc-tiktok-id').value.trim() : '';
   if (!nome) { showToast('Informe o nome do BC!', 'warn'); return; }
 
-  // Salva no localStorage (ADS Power)
-  bcs.push({id:Date.now(), nome, profileId, tiktokBcId:tiktokId, status:'idle',
-            totalContas:0, campanhasSucesso:0, campanhasFalha:0, contasCriadas:0});
-  salvarDados(); closeModal(); updateNavBadge();
-  renderBCTable(); renderDashboard(); renderContasBCList(); renderCampBCList(); atualizarUploadBCSelect();
-  addLog('BC "'+nome+'" adicionado!', 'success'); showToast('BC "'+nome+'" adicionado!', 'success');
+  // Salva SEMPRE na API (fonte única de verdade - persiste no servidor)
+  const editId = window._editingBcId || null;
+  window._editingBcId = null;
 
-  // Se tem TikTok ID, salva tambem na API
-  if (tiktokId) {
-    fetch('/api/bcs-api', {method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({nome, profileId, tiktokBcId: tiktokId})
-    }).then(r=>r.json()).then(d=>{ if(d.ok){ loadBcsApi(); } });
+  const doSave = () => fetch('/api/bcs-api', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({nome, profileId, tiktokBcId: tiktokId})
+  }).then(r=>r.json()).then(d=>{
+    if (d.ok) {
+      closeModal();
+      addLog('BC "'+nome+'" salvo!', 'success');
+      showToast('BC "'+nome+'" salvo!', 'success');
+      recarregarBCs();
+    } else {
+      showToast('Erro ao salvar BC: '+(d.error||''), 'error');
+    }
+  }).catch(()=>{ showToast('Erro de conexão ao salvar BC', 'error'); });
+
+  if (editId) {
+    // Edição: deleta o antigo e cria novo
+    fetch('/api/bcs-api/'+editId, {method:'DELETE'}).finally(doSave);
+  } else {
+    doSave();
   }
-
-  loadServerStats();
 }
 
 // ── EDIT BC (atualizado) ──────────────────────────────────────────────────────
 function editBC(idx) {
   const bc = bcs[idx];
+  // Guarda o id para deletar ao salvar
+  window._editingBcId = bc.id;
   document.getElementById('bc-nome').value = bc.nome;
   document.getElementById('bc-profile-id').value = bc.profileId || '';
   const tikEl = document.getElementById('bc-tiktok-id');
   if (tikEl) { tikEl.value = bc.tiktokBcId || ''; toggleOAuthSection(); }
-  bcs.splice(idx,1); salvarDados();
   document.getElementById('modal-add-bc').classList.add('open');
 }
 
@@ -1602,18 +1608,11 @@ document.getElementById('visao-periodo').addEventListener('change', function() {
   datas.style.display = this.value === 'custom' ? 'flex' : 'none';
 });
 
-function toggleConversaoFields() {
-  const obj = document.getElementById('camp-objetivo').value;
-  const fields = document.getElementById('camp-conversao-fields');
-  fields.style.display = obj === 'CONVERSIONS' ? 'block' : 'none';
-}
-
 function getPeriodoDates() {
   const periodo = document.getElementById('visao-periodo').value;
   const hoje = new Date();
   const fmt = d => d.toISOString().split('T')[0];
   if (periodo === 'today') return [fmt(hoje), fmt(hoje)];
-  if (periodo === 'yesterday') { const d=new Date(hoje); d.setDate(d.getDate()-1); return [fmt(d),fmt(d)]; }
   if (periodo === '7d')  { const s=new Date(hoje); s.setDate(s.getDate()-6); return [fmt(s),fmt(hoje)]; }
   if (periodo === '30d') { const s=new Date(hoje); s.setDate(s.getDate()-29); return [fmt(s),fmt(hoje)]; }
   // custom
