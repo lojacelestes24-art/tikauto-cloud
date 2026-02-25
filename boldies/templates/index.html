@@ -501,6 +501,16 @@ input[type=date].form-input { color-scheme:dark; }
     <div class="action-bar">
       <div class="action-title">Criação de Campanhas em Massa</div>
       <span class="count-chip">BCs: <span id="camp-bc-count">0</span></span>
+      <div style="display:flex;align-items:center;gap:6px;background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:4px 10px">
+        <span style="font-size:10px;font-family:var(--mono);color:var(--text2)">MODO</span>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;font-weight:600">
+          <input type="checkbox" id="chk-modo-api" checked onchange="toggleModoApi()" style="display:none">
+          <div id="modo-api-pill" style="width:36px;height:18px;border-radius:9px;background:var(--tt-cyan);position:relative;transition:background 0.2s;cursor:pointer" onclick="document.getElementById('chk-modo-api').click()">
+            <div id="modo-api-dot" style="position:absolute;top:2px;left:18px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left 0.2s"></div>
+          </div>
+          <span id="modo-api-label" style="color:var(--tt-cyan);font-family:var(--mono);font-size:10px;letter-spacing:1px">API</span>
+        </label>
+      </div>
       <button class="btn btn-success" id="btn-start-camp" onclick="startCampanhas()">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
         Iniciar
@@ -1344,15 +1354,66 @@ function stopContas() {
   addLog('Processo interrompido pelo usuário','warn','log-contas');
   bcs.forEach(bc=>{if(bc.status==='running')bc.status='idle';}); salvarDados(); renderDashboard();
 }
+function toggleModoApi() {
+  const on = document.getElementById('chk-modo-api').checked;
+  document.getElementById('modo-api-pill').style.background = on ? 'var(--tt-cyan)' : 'var(--text3)';
+  document.getElementById('modo-api-dot').style.left = on ? '18px' : '2px';
+  document.getElementById('modo-api-label').innerText = on ? 'API' : 'BROWSER';
+  document.getElementById('modo-api-label').style.color = on ? 'var(--tt-cyan)' : 'var(--text2)';
+}
+
 function startCampanhas() {
   if(!campBcSelecionados.size) { showToast('Selecione ao menos um BC!','warn'); return; }
   const codigo = document.getElementById('input-post-code').value.trim();
   if(!codigo) { showToast('Insira o link ou código do post TikTok!','warn'); return; }
   const selectedBCs = bcs.filter(bc=>campBcSelecionados.has(bc.id));
+  const modoApi = document.getElementById('chk-modo-api') && document.getElementById('chk-modo-api').checked;
   document.getElementById('btn-start-camp').style.display='none';
   document.getElementById('btn-stop-camp').style.display='flex';
-  iniciarEmFila(selectedBCs, null, 'campanhas');
+  if (modoApi) {
+    iniciarCampanhasAPI(selectedBCs);
+  } else {
+    iniciarEmFila(selectedBCs, null, 'campanhas');
+  }
   salvarDados(); renderDashboard();
+}
+
+function iniciarCampanhasAPI(selectedBCs) {
+  const postCode   = document.getElementById('input-post-code').value.trim();
+  const numConj    = parseInt(document.getElementById('range-conjuntos').value);
+  const objetivo   = document.getElementById('camp-objetivo').value;
+  const paises     = document.getElementById('camp-pais').value;
+  const dataInicio = document.getElementById('camp-data-inicio').value;
+  const dataFim    = document.getElementById('camp-data-fim').value;
+  const pixelId    = (document.getElementById('camp-pixel-id')||{value:''}).value.trim();
+  const convUrl    = (document.getElementById('camp-conv-url')||{value:''}).value.trim();
+  const convEvent  = (document.getElementById('camp-conv-event')||{value:'PURCHASE'}).value;
+
+  selectedBCs.forEach(bc => {
+    const apiBC = bcApiList.find(b => b.id === bc.id || b.nome === bc.nome);
+    if (!apiBC) { showToast(`BC ${bc.nome}: sem API configurada`, 'warn'); return; }
+    if (!apiBC.token_ok) { showToast(`BC ${bc.nome}: sem token OAuth`, 'error'); return; }
+    const advIds = campContasSelecionadas[bc.id] ? [...campContasSelecionadas[bc.id]] : [];
+    const payload = {
+      objetivo, post_code: postCode, num_conjuntos: numConj,
+      data_inicio: dataInicio, data_fim: dataFim,
+      paises, pixel_id: pixelId, conv_url: convUrl, conv_event: convEvent,
+      advertiser_ids: advIds,
+    };
+    addLog(`[API] 🚀 Iniciando ${bc.nome} — ${advIds.length||'todas'} conta(s)...`, 'info', 'log-camp');
+    fetch(`/api/bcs-api/${apiBC.id}/criar-campanhas-api`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    }).then(r=>r.json()).then(d=>{
+      if (d.ok) { addLog(`[API] ✅ ${bc.nome}: ${d.message}`, 'success', 'log-camp'); showToast(d.message,'success'); }
+      else       { addLog(`[API] ❌ ${bc.nome}: ${d.error}`, 'error', 'log-camp'); showToast(d.error,'error'); }
+    }).catch(e=>{ addLog(`[API] ❌ Erro: ${e}`, 'error', 'log-camp'); });
+  });
+  // Volta o botão após 2s (API roda em background no server)
+  setTimeout(()=>{
+    document.getElementById('btn-start-camp').style.display='flex';
+    document.getElementById('btn-stop-camp').style.display='none';
+  }, 2000);
 }
 function stopCampanhas() {
   document.getElementById('btn-start-camp').style.display='flex';
