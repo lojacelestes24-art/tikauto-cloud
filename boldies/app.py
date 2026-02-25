@@ -361,6 +361,9 @@ def start_campanhas():
         'objetivo'       : objetivo,
         'orcamento'      : orcamento,
         'paises'         : paises,
+        'pixel_id'       : data.get('pixel_id', ''),
+        'conv_url'       : data.get('conv_url', ''),
+        'conv_event'     : data.get('conv_event', 'PURCHASE'),
         'advertiser_ids' : advertiser_ids,
     }
     cfg_file = os.path.join(LOG_DIR, f'cfg_{bc_id}.json')
@@ -468,8 +471,13 @@ def run_criar_campanhas(profile_id, post_code, simultaneas, bc_id, bc_nome, key)
     data_inicio   = cfg.get('data_inicio', '')
     data_fim      = cfg.get('data_fim', '')
     objetivo      = cfg.get('objetivo', 'VIDEO_VIEWS')
+    pixel_id      = cfg.get('pixel_id', '')
+    conv_url      = cfg.get('conv_url', '')
+    conv_event    = cfg.get('conv_event', 'PURCHASE')
 
     adicionar_log(f'[{bc_nome}] Iniciando campanhas... ({num_conjuntos} conjunto(s))', 'info')
+    if objetivo == 'CONVERSIONS':
+        adicionar_log(f'[{bc_nome}] 🎯 Objetivo: Conversões | Pixel: {pixel_id or "n/d"} | Evento: {conv_event}', 'info')
     if data_inicio: adicionar_log(f'[{bc_nome}] Início agendado: {data_inicio}', 'info')
     if data_fim:    adicionar_log(f'[{bc_nome}] Fim agendado: {data_fim}', 'info')
 
@@ -575,6 +583,7 @@ def run_criar_campanhas(profile_id, post_code, simultaneas, bc_id, bc_nome, key)
                             'REACH':       ['Alcance', 'Reach'],
                             'TRAFFIC':     ['Tráfego', 'Traffic'],
                             'ENGAGEMENT':  ['Engajamento', 'Engagement'],
+                            'CONVERSIONS': ['Conversões', 'Conversions'],
                         }
                         obj_labels = obj_map.get(objetivo, ['Visualizações de vídeo', 'Video Views'])
                         selecionado = False
@@ -587,6 +596,79 @@ def run_criar_campanhas(profile_id, post_code, simultaneas, bc_id, bc_nome, key)
                         if not selecionado: raise Exception('Objetivo não encontrado')
 
                         time.sleep(3)
+
+                        # Se for Conversões, configura pixel + URL
+                        if objetivo == 'CONVERSIONS' and pixel_id:
+                            try:
+                                # Seleciona pixel (campo de busca/select)
+                                dashboard.evaluate(f"""
+                                    () => {{
+                                        // Tenta campo de input do pixel
+                                        let inputs = document.querySelectorAll('input[placeholder*="pixel"], input[placeholder*="Pixel"]');
+                                        for (let inp of inputs) {{
+                                            inp.value = '{pixel_id}';
+                                            inp.dispatchEvent(new Event('input', {{bubbles:true}}));
+                                            inp.dispatchEvent(new Event('change', {{bubbles:true}}));
+                                            return true;
+                                        }}
+                                        return false;
+                                    }}
+                                """)
+                                time.sleep(2)
+                                # Tenta clicar no pixel na lista dropdown
+                                dashboard.evaluate(f"""
+                                    () => {{
+                                        let els = document.querySelectorAll('*');
+                                        for (let el of els) {{
+                                            if ((el.innerText||'').includes('{pixel_id}') && el.offsetParent !== null) {{
+                                                el.click(); return true;
+                                            }}
+                                        }}
+                                        return false;
+                                    }}
+                                """)
+                                time.sleep(2)
+                                adicionar_log(f'[{bc_nome}] Pixel {pixel_id} configurado', 'info')
+                            except Exception as pe:
+                                adicionar_log(f'[{bc_nome}] ⚠ Pixel: {str(pe)[:60]}', 'warn')
+
+                            # Evento de conversão
+                            if conv_event:
+                                try:
+                                    ev_map = {
+                                        'PURCHASE': ['Compra', 'Purchase'],
+                                        'COMPLETE_REGISTRATION': ['Cadastro Completo', 'Complete Registration'],
+                                        'SUBMIT_FORM': ['Envio de Formulário', 'Submit Form'],
+                                        'ADD_TO_CART': ['Adicionar ao Carrinho', 'Add to Cart'],
+                                        'CHECKOUT': ['Checkout'],
+                                        'VIEW_CONTENT': ['Visualizar Conteúdo', 'View Content'],
+                                    }
+                                    ev_labels = ev_map.get(conv_event, [conv_event])
+                                    for lbl in ev_labels:
+                                        clicou = dashboard.evaluate(f"""() => {{ let els = document.querySelectorAll('*'); for (let e of els) {{ if ((e.innerText||'').trim() === '{lbl}' && e.offsetParent !== null) {{ e.click(); return true; }} }} return false; }}""")
+                                        if clicou: break
+                                    time.sleep(2)
+                                    adicionar_log(f'[{bc_nome}] Evento de conversão: {conv_event}', 'info')
+                                except: pass
+
+                            # URL de conversão (landing page)
+                            if conv_url:
+                                try:
+                                    dashboard.evaluate(f"""
+                                        () => {{
+                                            let inputs = document.querySelectorAll('input[placeholder*="URL"], input[placeholder*="url"], input[placeholder*="link"], input[type="url"]');
+                                            for (let inp of inputs) {{
+                                                inp.value = '{conv_url}';
+                                                inp.dispatchEvent(new Event('input', {{bubbles:true}}));
+                                                inp.dispatchEvent(new Event('change', {{bubbles:true}}));
+                                                return true;
+                                            }}
+                                            return false;
+                                        }}
+                                    """)
+                                    time.sleep(2)
+                                    adicionar_log(f'[{bc_nome}] URL de conversão configurada', 'info')
+                                except: pass
                         clicar_ks(dashboard, 'Continuar')
                         time.sleep(4)
 
@@ -924,73 +1006,103 @@ def api_overview(bc_id):
         return jsonify({'ok': False, 'error': 'Sincronize o BC primeiro para carregar as contas.'})
 
     import json as _json
+    from concurrent.futures import ThreadPoolExecutor, as_completed
     result = []
 
-    for adv_id in adv_ids:
+    def fetch_advertiser(adv_id):
         acc_name = accounts.get(str(adv_id), {}).get('name', str(adv_id))
 
-        # Campanhas
+        # 1) Pega todas as campanhas
         rc = tt_get('campaign/get', token, adv_id, {'page_size': 100})
+        if rc.get('code') != 0:
+            return {'advertiser_id': str(adv_id), 'advertiser_name': acc_name, 'campaigns': [], 'total_spend': 0}
+
+        camp_list = rc.get('data', {}).get('list', [])
+        if not camp_list:
+            return {'advertiser_id': str(adv_id), 'advertiser_name': acc_name, 'campaigns': [], 'total_spend': 0}
+
+        all_camp_ids = [str(c.get('campaign_id','')) for c in camp_list]
+
+        # 2) Report de TODAS as campanhas da conta de uma vez (sem filtro por campanha individual)
+        spend_map = {}  # camp_id -> {spend, impressions, clicks}
+        try:
+            page = 1
+            while True:
+                rr = tt_get('report/integrated/get', token, adv_id, {
+                    'report_type': 'BASIC',
+                    'dimensions' : _json.dumps(['campaign_id']),
+                    'metrics'    : _json.dumps(['spend', 'impressions', 'clicks']),
+                    'data_level' : 'AUCTION_CAMPAIGN',
+                    'start_date' : start_date,
+                    'end_date'   : end_date,
+                    'page_size'  : 1000,
+                    'page'       : page,
+                })
+                if rr.get('code') != 0:
+                    break
+                rows = rr.get('data', {}).get('list', [])
+                for row in rows:
+                    dims = row.get('dimensions', {})
+                    m    = row.get('metrics', {})
+                    cid  = str(dims.get('campaign_id', ''))
+                    if cid:
+                        spend_map[cid] = {
+                            'spend'      : float(m.get('spend', 0) or 0),
+                            'impressions': int(m.get('impressions', 0) or 0),
+                            'clicks'     : int(m.get('clicks', 0) or 0),
+                        }
+                page_info = rr.get('data', {}).get('page_info', {})
+                if page >= page_info.get('total_page', 1):
+                    break
+                page += 1
+        except Exception:
+            pass
+
+        # 3) Ad groups de todas as campanhas em paralelo
+        def get_adgroups(camp_id):
+            rg = tt_get('adgroup/get', token, adv_id, {'campaign_id': camp_id, 'page_size': 50})
+            if rg.get('code') == 0:
+                return camp_id, [{'id': str(ag.get('adgroup_id','')),
+                                  'name': ag.get('adgroup_name',''),
+                                  'status': ag.get('operation_status','')}
+                                 for ag in rg.get('data',{}).get('list',[])]
+            return camp_id, []
+
+        adgroup_map = {}
+        with ThreadPoolExecutor(max_workers=6) as ag_ex:
+            for cid, ags in ag_ex.map(get_adgroups, all_camp_ids):
+                adgroup_map[cid] = ags
+
+        # 4) Monta resultado
         campaigns = []
-        if rc.get('code') == 0:
-            for camp in rc.get('data', {}).get('list', []):
-                camp_id   = str(camp.get('campaign_id',''))
-                camp_name = camp.get('campaign_name','')
-                camp_status = camp.get('operation_status','')
+        for camp in camp_list:
+            camp_id = str(camp.get('campaign_id',''))
+            s = spend_map.get(camp_id, {'spend': 0, 'impressions': 0, 'clicks': 0})
+            campaigns.append({
+                'id'         : camp_id,
+                'name'       : camp.get('campaign_name',''),
+                'status'     : camp.get('operation_status',''),
+                'adgroups'   : adgroup_map.get(camp_id, []),
+                'spend'      : round(s['spend'], 2),
+                'impressions': s['impressions'],
+                'clicks'     : s['clicks'],
+            })
 
-                # Conjuntos (ad groups)
-                rg = tt_get('adgroup/get', token, adv_id, {
-                    'campaign_id': camp_id, 'page_size': 50
-                })
-                adgroups = []
-                if rg.get('code') == 0:
-                    for ag in rg.get('data', {}).get('list', []):
-                        adgroups.append({
-                            'id'    : str(ag.get('adgroup_id','')),
-                            'name'  : ag.get('adgroup_name',''),
-                            'status': ag.get('operation_status',''),
-                        })
-
-                # Gastos do período
-                spend = 0
-                impressions = 0
-                clicks = 0
-                try:
-                    rr = tt_get('report/integrated/get', token, adv_id, {
-                        'report_type'  : 'BASIC',
-                        'dimensions'   : _json.dumps(['campaign_id']),
-                        'metrics'      : _json.dumps(['spend','impressions','clicks','reach']),
-                        'data_level'   : 'AUCTION_CAMPAIGN',
-                        'start_date'   : start_date,
-                        'end_date'     : end_date,
-                        'filtering'    : _json.dumps([{'field_name':'campaign_id','filter_type':'IN','filter_value':_json.dumps([camp_id])}]),
-                        'page_size'    : 10,
-                    })
-                    if rr.get('code') == 0:
-                        rows = rr.get('data',{}).get('list',[])
-                        for row in rows:
-                            m = row.get('metrics',{})
-                            spend       += float(m.get('spend',0) or 0)
-                            impressions += int(m.get('impressions',0) or 0)
-                            clicks      += int(m.get('clicks',0) or 0)
-                except: pass
-
-                campaigns.append({
-                    'id'         : camp_id,
-                    'name'       : camp_name,
-                    'status'     : camp_status,
-                    'adgroups'   : adgroups,
-                    'spend'      : round(spend, 2),
-                    'impressions': impressions,
-                    'clicks'     : clicks,
-                })
-
-        result.append({
+        return {
             'advertiser_id'  : str(adv_id),
             'advertiser_name': acc_name,
             'campaigns'      : campaigns,
             'total_spend'    : round(sum(c['spend'] for c in campaigns), 2),
-        })
+        }
+
+    # Processar todas as contas em paralelo (até 4 ao mesmo tempo)
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        futures = {ex.submit(fetch_advertiser, adv_id): adv_id for adv_id in adv_ids}
+        for fut in as_completed(futures):
+            try:
+                result.append(fut.result())
+            except:
+                pass
 
     return jsonify({'ok': True, 'data': result, 'start_date': start_date, 'end_date': end_date})
 
