@@ -348,16 +348,20 @@ def start_campanhas():
     if os.path.exists(live_file): os.remove(live_file)
     log_offsets[bc_id] = 0
 
+    # Contas selecionadas pelo frontend (ID + nome via API)
+    advertiser_ids = data.get('advertiser_ids', [])  # lista selecionada, vazio = todas
+
     # Salva config da campanha em arquivo para o worker ler
     cfg = {
-        'post_code'    : post_code,
-        'simultaneas'  : simultaneas,
-        'num_conjuntos': num_conjuntos,
-        'data_inicio'  : data_inicio,
-        'data_fim'     : data_fim,
-        'objetivo'     : objetivo,
-        'orcamento'    : orcamento,
-        'paises'       : paises,
+        'post_code'      : post_code,
+        'simultaneas'    : simultaneas,
+        'num_conjuntos'  : num_conjuntos,
+        'data_inicio'    : data_inicio,
+        'data_fim'       : data_fim,
+        'objetivo'       : objetivo,
+        'orcamento'      : orcamento,
+        'paises'         : paises,
+        'advertiser_ids' : advertiser_ids,
     }
     cfg_file = os.path.join(LOG_DIR, f'cfg_{bc_id}.json')
     with open(cfg_file, 'w', encoding='utf-8') as f:
@@ -725,6 +729,322 @@ def run_criar_campanhas(profile_id, post_code, simultaneas, bc_id, bc_nome, key)
         adicionar_log(f'[{bc_nome}] ✅ Processo de campanhas concluído!', 'success')
     except Exception as e:
         adicionar_log(f'[{bc_nome}] ❌ Erro fatal: {str(e)[:100]}', 'error')
+
+# ─── TikTok API helpers ───────────────────────────────────────────────────────
+TIKTOK_API   = 'https://business-api.tiktok.com/open_api/v1.3'
+TIKTOK_APP_ID     = os.environ.get('TIKTOK_APP_ID', '7610282489889685520')
+TIKTOK_APP_SECRET = os.environ.get('TIKTOK_APP_SECRET', '')
+TIKTOK_REDIRECT   = os.environ.get('TIKTOK_REDIRECT', 'https://boldies.site/oauth/callback')
+
+def get_bcs_api():    return load_json('bcs_api.json', [])
+def save_bcs_api(d):  save_json('bcs_api.json', d)
+def get_tokens():     return load_json('tokens.json', {})
+def save_tokens(d):   save_json('tokens.json', d)
+
+def tt_get(endpoint, token, advertiser_id, params=None):
+    url = f"{TIKTOK_API}/{endpoint}/"
+    p = {'advertiser_id': advertiser_id}
+    if params: p.update(params)
+    try:
+        r = req.get(url, headers={'Access-Token': token}, params=p, timeout=15)
+        return r.json()
+    except Exception as e:
+        return {'code': -1, 'message': str(e)}
+
+def tt_post(endpoint, token, payload):
+    url = f"{TIKTOK_API}/{endpoint}/"
+    try:
+        r = req.post(url, headers={'Access-Token': token, 'Content-Type': 'application/json'}, json=payload, timeout=30)
+        return r.json()
+    except Exception as e:
+        return {'code': -1, 'message': str(e)}
+
+def get_token_for_bc(bc_id):
+    return get_tokens().get(str(bc_id), {}).get('access_token')
+
+# ─── OAuth ────────────────────────────────────────────────────────────────────
+@app.route('/api/oauth/url')
+def oauth_url():
+    bc_id = request.args.get('bc_id', 'unknown')
+    url = (f"https://business-api.tiktok.com/portal/auth"
+           f"?app_id={TIKTOK_APP_ID}&state=bcid_{bc_id}&redirect_uri={TIKTOK_REDIRECT}")
+    return jsonify({'ok': True, 'url': url})
+
+@app.route('/oauth/callback')
+def oauth_callback():
+    auth_code = request.args.get('auth_code')
+    state     = request.args.get('state', '')
+    error     = request.args.get('error_code')
+    if error or not auth_code:
+        return render_template('index.html')
+    result = _exchange_token(auth_code)
+    if not result.get('ok'):
+        return render_template('index.html')
+    bc_id = None
+    if state.startswith('bcid_'):
+        try: bc_id = state.replace('bcid_', '')
+        except: pass
+    token_data = result['data']
+    tokens = get_tokens()
+    key = str(bc_id) if bc_id else str(time.time())
+    tokens[key] = {'access_token': token_data['access_token'], 'saved_at': datetime.now().isoformat()}
+    save_tokens(tokens)
+    # Atualiza BC
+    bcs = get_bcs_api()
+    for bc in bcs:
+        if str(bc.get('tiktokBcId','')) == str(bc_id):
+            bc['token_ok'] = True
+            break
+    save_bcs_api(bcs)
+    return render_template('index.html')
+
+@app.route('/api/oauth/exchange', methods=['POST'])
+def oauth_exchange():
+    auth_code = request.json.get('auth_code')
+    bc_id     = request.json.get('bc_id')
+    if not auth_code:
+        return jsonify({'ok': False, 'error': 'auth_code obrigatorio'})
+    result = _exchange_token(auth_code)
+    if not result.get('ok'):
+        return jsonify(result)
+    token_data = result['data']
+    tokens = get_tokens()
+    key = str(bc_id) if bc_id else str(time.time())
+    tokens[key] = {'access_token': token_data['access_token'], 'saved_at': datetime.now().isoformat()}
+    save_tokens(tokens)
+    # Atualiza token_ok no BC
+    bcs = get_bcs_api()
+    for bc in bcs:
+        if str(bc.get('tiktokBcId','')) == str(bc_id):
+            bc['token_ok'] = True
+            break
+    save_bcs_api(bcs)
+    return jsonify({'ok': True})
+
+def _exchange_token(auth_code):
+    try:
+        r = req.post(f"{TIKTOK_API}/oauth2/access_token/", json={
+            'app_id': TIKTOK_APP_ID, 'secret': TIKTOK_APP_SECRET,
+            'auth_code': auth_code, 'grant_type': 'authorization_code'
+        }, timeout=15)
+        d = r.json()
+        if d.get('code') == 0:
+            return {'ok': True, 'data': d['data']}
+        return {'ok': False, 'error': d.get('message', 'Erro API TikTok')}
+    except Exception as e:
+        return {'ok': False, 'error': str(e)}
+
+# ─── BCs API CRUD ──────────────────────────────────────────────────────────────
+@app.route('/api/bcs-api', methods=['GET'])
+def api_get_bcs():
+    bcs    = get_bcs_api()
+    tokens = get_tokens()
+    for bc in bcs:
+        bc['token_ok'] = str(bc.get('tiktokBcId','')) in tokens
+    return jsonify(bcs)
+
+@app.route('/api/bcs-api', methods=['POST'])
+def api_add_bc():
+    d    = request.json
+    bcs  = get_bcs_api()
+    bc   = {
+        'id'         : str(int(time.time() * 1000)),
+        'nome'       : d.get('nome',''),
+        'profileId'  : d.get('profileId',''),   # ADS Power
+        'tiktokBcId' : d.get('tiktokBcId',''), # TikTok API
+        'token_ok'   : False,
+        'criado_em'  : datetime.now().isoformat()
+    }
+    bcs.append(bc)
+    save_bcs_api(bcs)
+    return jsonify({'ok': True, 'bc': bc})
+
+@app.route('/api/bcs-api/<bc_id>', methods=['DELETE'])
+def api_del_bc(bc_id):
+    save_bcs_api([b for b in get_bcs_api() if b['id'] != bc_id])
+    tokens = get_tokens()
+    # Remove token pelo tiktokBcId
+    bcs = get_bcs_api()
+    for bc in bcs:
+        if bc['id'] == bc_id:
+            tokens.pop(str(bc.get('tiktokBcId','')), None)
+    save_tokens(tokens)
+    return jsonify({'ok': True})
+
+# ─── Advertiser IDs do BC ─────────────────────────────────────────────────────
+@app.route('/api/bcs-api/<bc_id>/sync', methods=['POST'])
+def api_sync_bc(bc_id):
+    bcs = get_bcs_api()
+    bc  = next((b for b in bcs if b['id'] == bc_id), None)
+    if not bc:
+        return jsonify({'ok': False, 'error': 'BC não encontrado'})
+    token = get_token_for_bc(bc.get('tiktokBcId',''))
+    if not token:
+        return jsonify({'ok': False, 'error': 'Sem token. Conecte via OAuth primeiro.'})
+    # Busca advertiser IDs
+    r = req.get(f"{TIKTOK_API}/oauth2/advertiser/get/",
+                headers={'Access-Token': token},
+                params={'app_id': TIKTOK_APP_ID, 'secret': TIKTOK_APP_SECRET},
+                timeout=15)
+    d = r.json()
+    if d.get('code') != 0:
+        return jsonify({'ok': False, 'error': d.get('message','Erro API')})
+    adv_list = d['data'].get('list', [])
+    adv_ids  = [str(a['advertiser_id']) for a in adv_list]
+    # Busca nomes
+    accounts = {}
+    for adv in adv_list:
+        accounts[str(adv['advertiser_id'])] = {
+            'name'    : adv.get('advertiser_name', str(adv['advertiser_id'])),
+            'currency': adv.get('currency',''),
+        }
+    bc['advertiser_ids'] = adv_ids
+    bc['accounts']       = accounts
+    save_bcs_api(bcs)
+    return jsonify({'ok': True, 'total': len(adv_ids), 'advertiser_ids': adv_ids})
+
+# ─── Visão Geral: campanhas + gastos ──────────────────────────────────────────
+@app.route('/api/bcs-api/<bc_id>/overview', methods=['POST'])
+def api_overview(bc_id):
+    bcs = get_bcs_api()
+    bc  = next((b for b in bcs if b['id'] == bc_id), None)
+    if not bc:
+        return jsonify({'ok': False, 'error': 'BC não encontrado'})
+    token = get_token_for_bc(bc.get('tiktokBcId',''))
+    if not token:
+        return jsonify({'ok': False, 'error': 'Sem token OAuth'})
+
+    d          = request.json or {}
+    start_date = d.get('start_date', datetime.now().strftime('%Y-%m-%d'))
+    end_date   = d.get('end_date',   datetime.now().strftime('%Y-%m-%d'))
+    adv_ids    = bc.get('advertiser_ids', [])
+    accounts   = bc.get('accounts', {})
+
+    if not adv_ids:
+        return jsonify({'ok': False, 'error': 'Sincronize o BC primeiro para carregar as contas.'})
+
+    import json as _json
+    result = []
+
+    for adv_id in adv_ids:
+        acc_name = accounts.get(str(adv_id), {}).get('name', str(adv_id))
+
+        # Campanhas
+        rc = tt_get('campaign/get', token, adv_id, {'page_size': 100})
+        campaigns = []
+        if rc.get('code') == 0:
+            for camp in rc.get('data', {}).get('list', []):
+                camp_id   = str(camp.get('campaign_id',''))
+                camp_name = camp.get('campaign_name','')
+                camp_status = camp.get('operation_status','')
+
+                # Conjuntos (ad groups)
+                rg = tt_get('adgroup/get', token, adv_id, {
+                    'campaign_id': camp_id, 'page_size': 50
+                })
+                adgroups = []
+                if rg.get('code') == 0:
+                    for ag in rg.get('data', {}).get('list', []):
+                        adgroups.append({
+                            'id'    : str(ag.get('adgroup_id','')),
+                            'name'  : ag.get('adgroup_name',''),
+                            'status': ag.get('operation_status',''),
+                        })
+
+                # Gastos do período
+                spend = 0
+                impressions = 0
+                clicks = 0
+                try:
+                    rr = tt_get('report/integrated/get', token, adv_id, {
+                        'report_type'  : 'BASIC',
+                        'dimensions'   : _json.dumps(['campaign_id']),
+                        'metrics'      : _json.dumps(['spend','impressions','clicks','reach']),
+                        'data_level'   : 'AUCTION_CAMPAIGN',
+                        'start_date'   : start_date,
+                        'end_date'     : end_date,
+                        'filtering'    : _json.dumps([{'field_name':'campaign_id','filter_type':'IN','filter_value':_json.dumps([camp_id])}]),
+                        'page_size'    : 10,
+                    })
+                    if rr.get('code') == 0:
+                        rows = rr.get('data',{}).get('list',[])
+                        for row in rows:
+                            m = row.get('metrics',{})
+                            spend       += float(m.get('spend',0) or 0)
+                            impressions += int(m.get('impressions',0) or 0)
+                            clicks      += int(m.get('clicks',0) or 0)
+                except: pass
+
+                campaigns.append({
+                    'id'         : camp_id,
+                    'name'       : camp_name,
+                    'status'     : camp_status,
+                    'adgroups'   : adgroups,
+                    'spend'      : round(spend, 2),
+                    'impressions': impressions,
+                    'clicks'     : clicks,
+                })
+
+        result.append({
+            'advertiser_id'  : str(adv_id),
+            'advertiser_name': acc_name,
+            'campaigns'      : campaigns,
+            'total_spend'    : round(sum(c['spend'] for c in campaigns), 2),
+        })
+
+    return jsonify({'ok': True, 'data': result, 'start_date': start_date, 'end_date': end_date})
+
+# ─── Desativar campanhas ───────────────────────────────────────────────────────
+@app.route('/api/bcs-api/<bc_id>/disable-campaign', methods=['POST'])
+def api_disable_campaign(bc_id):
+    bcs   = get_bcs_api()
+    bc    = next((b for b in bcs if b['id'] == bc_id), None)
+    token = get_token_for_bc(bc.get('tiktokBcId','')) if bc else None
+    if not token:
+        return jsonify({'ok': False, 'error': 'Sem token'})
+    adv_id      = request.json.get('advertiser_id')
+    campaign_id = request.json.get('campaign_id')
+    r = tt_post('campaign/status/update', token, {
+        'advertiser_id': adv_id,
+        'campaign_ids' : [campaign_id],
+        'operation_status': 'DISABLE'
+    })
+    if r.get('code') == 0:
+        return jsonify({'ok': True})
+    return jsonify({'ok': False, 'error': r.get('message', str(r))})
+
+@app.route('/api/bcs-api/<bc_id>/disable-all', methods=['POST'])
+def api_disable_all(bc_id):
+    """Desativa TODAS as campanhas de todas as contas do BC em background."""
+    bcs   = get_bcs_api()
+    bc    = next((b for b in bcs if b['id'] == bc_id), None)
+    token = get_token_for_bc(bc.get('tiktokBcId','')) if bc else None
+    if not token:
+        return jsonify({'ok': False, 'error': 'Sem token'})
+    adv_ids = bc.get('advertiser_ids', [])
+
+    def run():
+        total = 0
+        for adv_id in adv_ids:
+            rc = tt_get('campaign/get', token, adv_id, {'page_size': 100})
+            if rc.get('code') != 0: continue
+            camps = [str(c['campaign_id']) for c in rc.get('data',{}).get('list',[])
+                     if c.get('operation_status') != 'DELETE']
+            if not camps: continue
+            for i in range(0, len(camps), 20):
+                lote = camps[i:i+20]
+                r = tt_post('campaign/status/update', token, {
+                    'advertiser_id': adv_id,
+                    'campaign_ids' : lote,
+                    'operation_status': 'DISABLE'
+                })
+                if r.get('code') == 0: total += len(lote)
+                time.sleep(0.3)
+            adicionar_log(f'[TikAPI] {adv_id}: {len(camps)} campanhas desativadas', 'success')
+        adicionar_log(f'[TikAPI] Total desativadas: {total}', 'success')
+
+    threading.Thread(target=run, daemon=True).start()
+    return jsonify({'ok': True, 'message': f'Desativando campanhas de {len(adv_ids)} contas em background...'})
 
 if __name__ == '__main__':
     import webbrowser
