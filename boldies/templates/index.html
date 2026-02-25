@@ -564,12 +564,39 @@ input[type=date].form-input { color-scheme:dark; }
 
           <div class="form-group">
             <label class="form-label">Objetivo da Campanha</label>
-            <select class="form-input" id="camp-objetivo">
+            <select class="form-input" id="camp-objetivo" onchange="toggleConversaoFields()">
               <option value="VIDEO_VIEWS">📹 Visualizações de Vídeo</option>
               <option value="REACH">📢 Alcance</option>
               <option value="TRAFFIC">🔗 Tráfego</option>
               <option value="ENGAGEMENT">💬 Engajamento</option>
+              <option value="CONVERSIONS">🎯 Conversões</option>
             </select>
+          </div>
+
+          <!-- CAMPOS DE CONVERSÃO — aparecem só quando objetivo=CONVERSIONS -->
+          <div id="camp-conversao-fields" style="display:none;border:1px solid rgba(254,44,85,0.25);border-radius:10px;padding:14px;margin-bottom:4px">
+            <div style="font-size:9px;font-family:var(--mono);color:var(--tt-red);letter-spacing:2px;text-transform:uppercase;margin-bottom:12px">🎯 Configuração de Conversão</div>
+            <div class="form-group">
+              <label class="form-label">Pixel ID</label>
+              <input type="text" class="form-input" id="camp-pixel-id" placeholder="Ex: CXXXXXXXXXXXXXXXX">
+              <div class="tip cyan" style="margin-top:6px">ID do Pixel TikTok vinculado à conta de anúncios.</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">URL de Conversão (Landing Page)</label>
+              <input type="url" class="form-input" id="camp-conv-url" placeholder="https://seusite.com/oferta">
+              <div class="tip" style="margin-top:6px">URL para onde o tráfego será direcionado.</div>
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label class="form-label">Evento de Conversão</label>
+              <select class="form-input" id="camp-conv-event">
+                <option value="PURCHASE">💰 Compra (Purchase)</option>
+                <option value="COMPLETE_REGISTRATION">📋 Cadastro Completo</option>
+                <option value="SUBMIT_FORM">📝 Envio de Formulário</option>
+                <option value="ADD_TO_CART">🛒 Adicionar ao Carrinho</option>
+                <option value="CHECKOUT">💳 Checkout</option>
+                <option value="VIEW_CONTENT">👁 Visualizar Conteúdo</option>
+              </select>
+            </div>
           </div>
 
           <div class="form-group">
@@ -659,10 +686,11 @@ input[type=date].form-input { color-scheme:dark; }
         <select class="form-input" id="visao-bc-sel" style="width:200px" onchange="onVisaoBC()">
           <option value="">Selecione o BC...</option>
         </select>
-        <select class="form-input" id="visao-periodo" style="width:140px">
+        <select class="form-input" id="visao-periodo" style="width:150px">
           <option value="today">Hoje</option>
-          <option value="7d" selected>Ultimos 7 dias</option>
-          <option value="30d">Ultimos 30 dias</option>
+          <option value="yesterday">Ontem</option>
+          <option value="7d" selected>Últimos 7 dias</option>
+          <option value="30d">Últimos 30 dias</option>
           <option value="custom">Personalizado</option>
         </select>
         <div id="visao-datas-custom" style="display:none;gap:6px">
@@ -1286,6 +1314,9 @@ function iniciarEmFila(lista, quantidade, modo) {
           data_fim:document.getElementById('camp-data-fim').value,
           objetivo:document.getElementById('camp-objetivo').value,
           paises:document.getElementById('camp-pais').value,
+          pixel_id:(document.getElementById('camp-pixel-id')||{value:''}).value.trim(),
+          conv_url:(document.getElementById('camp-conv-url')||{value:''}).value.trim(),
+          conv_event:(document.getElementById('camp-conv-event')||{value:'PURCHASE'}).value,
           bc_id:bc.id, bc_nome:bc.nome,
           advertiser_ids: campContasSelecionadas[bc.id] ? [...campContasSelecionadas[bc.id]] : []
         };
@@ -1608,11 +1639,18 @@ document.getElementById('visao-periodo').addEventListener('change', function() {
   datas.style.display = this.value === 'custom' ? 'flex' : 'none';
 });
 
+function toggleConversaoFields() {
+  const obj = document.getElementById('camp-objetivo').value;
+  const fields = document.getElementById('camp-conversao-fields');
+  if (fields) fields.style.display = obj === 'CONVERSIONS' ? 'block' : 'none';
+}
+
 function getPeriodoDates() {
   const periodo = document.getElementById('visao-periodo').value;
   const hoje = new Date();
   const fmt = d => d.toISOString().split('T')[0];
-  if (periodo === 'today') return [fmt(hoje), fmt(hoje)];
+  if (periodo === 'today')     return [fmt(hoje), fmt(hoje)];
+  if (periodo === 'yesterday') { const d=new Date(hoje); d.setDate(d.getDate()-1); return [fmt(d),fmt(d)]; }
   if (periodo === '7d')  { const s=new Date(hoje); s.setDate(s.getDate()-6); return [fmt(s),fmt(hoje)]; }
   if (periodo === '30d') { const s=new Date(hoje); s.setDate(s.getDate()-29); return [fmt(s),fmt(hoje)]; }
   // custom
