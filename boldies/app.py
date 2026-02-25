@@ -1088,9 +1088,11 @@ def api_overview(bc_id):
                 'clicks'     : s['clicks'],
             })
 
+        acc_info = accounts.get(str(adv_id), {})
         return {
             'advertiser_id'  : str(adv_id),
             'advertiser_name': acc_name,
+            'currency'       : acc_info.get('currency', 'BRL'),
             'campaigns'      : campaigns,
             'total_spend'    : round(sum(c['spend'] for c in campaigns), 2),
         }
@@ -1120,6 +1122,24 @@ def api_disable_campaign(bc_id):
         'advertiser_id': adv_id,
         'campaign_ids' : [campaign_id],
         'operation_status': 'DISABLE'
+    })
+    if r.get('code') == 0:
+        return jsonify({'ok': True})
+    return jsonify({'ok': False, 'error': r.get('message', str(r))})
+
+@app.route('/api/bcs-api/<bc_id>/enable-campaign', methods=['POST'])
+def api_enable_campaign(bc_id):
+    bcs   = get_bcs_api()
+    bc    = next((b for b in bcs if b['id'] == bc_id), None)
+    token = get_token_for_bc(bc.get('tiktokBcId','')) if bc else None
+    if not token:
+        return jsonify({'ok': False, 'error': 'Sem token'})
+    adv_id      = request.json.get('advertiser_id')
+    campaign_id = request.json.get('campaign_id')
+    r = tt_post('campaign/status/update', token, {
+        'advertiser_id'   : adv_id,
+        'campaign_ids'    : [campaign_id],
+        'operation_status': 'ENABLE'
     })
     if r.get('code') == 0:
         return jsonify({'ok': True})
