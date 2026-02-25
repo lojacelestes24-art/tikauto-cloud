@@ -1178,6 +1178,193 @@ def api_disable_all(bc_id):
     threading.Thread(target=run, daemon=True).start()
     return jsonify({'ok': True, 'message': f'Desativando campanhas de {len(adv_ids)} contas em background...'})
 
+# ─── Criação de Campanhas via API (sem Playwright) ────────────────────────────
+@app.route('/api/bcs-api/<bc_id>/criar-campanhas-api', methods=['POST'])
+def api_criar_campanhas(bc_id):
+    """Cria campanha + adgroup + ad via TikTok API para cada conta do BC."""
+    bcs_list = get_bcs_api()
+    bc       = next((b for b in bcs_list if b['id'] == bc_id), None)
+    if not bc:
+        return jsonify({'ok': False, 'error': 'BC não encontrado'})
+    token = get_token_for_bc(bc.get('tiktokBcId', ''))
+    if not token:
+        return jsonify({'ok': False, 'error': 'Sem token OAuth. Conecte primeiro.'})
+
+    d             = request.json or {}
+    objetivo      = d.get('objetivo', 'VIDEO_VIEWS')
+    post_code     = d.get('post_code', '')       # spark post item_id ou código
+    num_conjuntos = int(d.get('num_conjuntos', 1))
+    orcamento     = d.get('orcamento', '')        # orçamento diário em float, vazio = sem limite
+    data_inicio   = d.get('data_inicio', '')      # YYYY-MM-DD HH:MM
+    data_fim      = d.get('data_fim', '')
+    paises        = d.get('paises', 'BR')
+    pixel_id      = d.get('pixel_id', '')
+    conv_url      = d.get('conv_url', '')
+    conv_event    = d.get('conv_event', 'PURCHASE')
+    adv_ids_sel   = d.get('advertiser_ids', [])   # lista selecionada; vazio = todas
+
+    adv_ids = adv_ids_sel if adv_ids_sel else bc.get('advertiser_ids', [])
+    if not adv_ids:
+        return jsonify({'ok': False, 'error': 'Nenhuma conta encontrada. Sincronize o BC primeiro.'})
+
+    # Mapa objetivo → objective_type da API
+    obj_map = {
+        'VIDEO_VIEWS' : 'VIDEO_VIEWS',
+        'REACH'       : 'REACH',
+        'TRAFFIC'     : 'TRAFFIC',
+        'ENGAGEMENT'  : 'ENGAGEMENT',
+        'CONVERSIONS' : 'CONVERSIONS',
+    }
+    objective_type = obj_map.get(objetivo, 'VIDEO_VIEWS')
+
+    def criar_para_conta(adv_id):
+        adv_id = str(adv_id)
+        log_prefix = f'[{bc["nome"]}][{adv_id[-6:]}]'
+
+        # ── 1. Campanha ──────────────────────────────────────────────────────
+        from datetime import datetime as dt
+        ts = dt.now().strftime('%Y%m%d%H%M%S')
+        camp_name = f'Camp_API_{ts}'
+
+        camp_payload = {
+            'advertiser_id'       : adv_id,
+            'campaign_name'       : camp_name,
+            'objective_type'      : objective_type,
+            'budget_mode'         : 'BUDGET_MODE_INFINITE',
+            'operation_status'    : 'ENABLE',
+        }
+        if orcamento:
+            try:
+                camp_payload['budget_mode'] = 'BUDGET_MODE_DAY'
+                camp_payload['budget']      = float(orcamento)
+            except: pass
+
+        rc = tt_post('campaign/create', token, camp_payload)
+        if rc.get('code') != 0:
+            adicionar_log(f'{log_prefix} ❌ Campanha: {rc.get("message","erro")}', 'error')
+            adicionar_relatorio(bc_id, bc["nome"], adv_id, 'campanha', 'falha', rc.get('message',''))
+            return False
+
+        campaign_id = str(rc['data']['campaign_id'])
+        adicionar_log(f'{log_prefix} ✅ Campanha criada: {campaign_id}', 'success')
+
+        # ── 2. Ad Group(s) ───────────────────────────────────────────────────
+        for conj_idx in range(num_conjuntos):
+            ag_name = f'Conjunto_{conj_idx+1}_{ts}'
+
+            ag_payload = {
+                'advertiser_id'     : adv_id,
+                'campaign_id'       : campaign_id,
+                'adgroup_name'      : ag_name,
+                'placement_type'    : 'PLACEMENT_TYPE_AUTOMATIC',
+                'location_ids'      : [paises_para_id(paises)],
+                'budget_mode'       : 'BUDGET_MODE_INFINITE',
+                'operation_status'  : 'ENABLE',
+                'optimization_goal' : objetivo_para_goal(objective_type),
+                'billing_event'     : objetivo_para_billing(objective_type),
+            }
+
+            # Datas
+            if data_inicio:
+                ag_payload['schedule_start_time'] = data_inicio.replace('T', ' ')
+            if data_fim:
+                ag_payload['schedule_end_time']   = data_fim.replace('T', ' ')
+            else:
+                ag_payload['schedule_type'] = 'SCHEDULE_START_END'
+
+            # Pixel para conversão
+            if objective_type == 'CONVERSIONS' and pixel_id:
+                ag_payload['pixel_id']          = pixel_id
+                ag_payload['external_action']   = conv_event
+                if conv_url:
+                    ag_payload['conversion_id'] = ''  # será associado via pixel
+
+            ra = tt_post('adgroup/create', token, ag_payload)
+            if ra.get('code') != 0:
+                adicionar_log(f'{log_prefix} ❌ Conjunto {conj_idx+1}: {ra.get("message","erro")}', 'error')
+                continue
+
+            adgroup_id = str(ra['data']['adgroup_id'])
+            adicionar_log(f'{log_prefix} ✅ Conjunto {conj_idx+1}: {adgroup_id}', 'info')
+
+            # ── 3. Ad (criativo spark) ────────────────────────────────────────
+            if not post_code:
+                adicionar_log(f'{log_prefix} ⚠ Sem post_code, pulando criativo', 'warn')
+                continue
+
+            ad_name = f'Ad_{conj_idx+1}_{ts}'
+
+            # Tenta como Spark Ad (authorized post)
+            ad_payload = {
+                'advertiser_id' : adv_id,
+                'adgroup_id'    : adgroup_id,
+                'ad_name'       : ad_name,
+                'ad_format'     : 'SINGLE_VIDEO',
+                'ad_type'       : 'SPARK_ADS',
+                'identity_type' : 'AUTH_CODE',
+                'identity_authorized_bc_id': bc.get('tiktokBcId', ''),
+                'spark_ads_post_id': post_code,
+                'operation_status': 'ENABLE',
+            }
+            if conv_url and objective_type in ('TRAFFIC', 'CONVERSIONS'):
+                ad_payload['landing_page_url'] = conv_url
+
+            rd = tt_post('ad/create', token, ad_payload)
+            if rd.get('code') != 0:
+                adicionar_log(f'{log_prefix} ❌ Ad {conj_idx+1}: {rd.get("message","erro")}', 'error')
+            else:
+                ad_id = str(rd['data'].get('ad_ids', ['?'])[0])
+                adicionar_log(f'{log_prefix} ✅ Ad criado: {ad_id}', 'success')
+
+        adicionar_relatorio(bc_id, bc["nome"], adv_id, 'campanha', 'sucesso', campaign_id)
+        return True
+
+    # Roda em background, uma conta por vez com delay pra não estourar rate limit
+    def run_all():
+        ok = err = 0
+        for adv_id in adv_ids:
+            if criar_para_conta(adv_id):
+                ok += 1
+            else:
+                err += 1
+            time.sleep(0.5)
+        adicionar_log(f'[{bc["nome"]}] 🏁 Concluído: {ok} ok, {err} falha(s)', 'success' if err==0 else 'warn')
+
+    threading.Thread(target=run_all, daemon=True).start()
+    return jsonify({'ok': True, 'message': f'Criando campanhas em {len(adv_ids)} conta(s) via API...', 'total': len(adv_ids)})
+
+
+def paises_para_id(pais_code):
+    """Retorna o location_id do TikTok Ads para o país."""
+    ids = {
+        'BR': 6211, 'US': 2840, 'PT': 6259, 'MX': 2484,
+        'AR': 6251, 'CO': 6254, 'CL': 6255, 'PE': 6256,
+        'GB': 2826, 'FR': 2250, 'DE': 2158, 'ES': 2510,
+        'IT': 2380, 'CA': 2124, 'AU': 2036,
+    }
+    return ids.get(pais_code.upper(), 6211)
+
+
+def objetivo_para_goal(objective_type):
+    return {
+        'VIDEO_VIEWS' : 'VIDEO_VIEWS',
+        'REACH'       : 'REACH',
+        'TRAFFIC'     : 'CLICK',
+        'ENGAGEMENT'  : 'ENGAGEMENT',
+        'CONVERSIONS' : 'CONVERT',
+    }.get(objective_type, 'VIDEO_VIEWS')
+
+
+def objetivo_para_billing(objective_type):
+    return {
+        'VIDEO_VIEWS' : 'TP',
+        'REACH'       : 'CPM',
+        'TRAFFIC'     : 'CPC',
+        'ENGAGEMENT'  : 'CPE',
+        'CONVERSIONS' : 'OCPM',
+    }.get(objective_type, 'TP')
+
+
 if __name__ == '__main__':
     import webbrowser
     print('=' * 50)
