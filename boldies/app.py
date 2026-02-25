@@ -1254,18 +1254,51 @@ def api_criar_campanhas(bc_id):
     def criar_para_conta(adv_id):
         adv_id = str(adv_id)
         log_prefix = f'[{bc["nome"]}][{adv_id[-6:]}]'
-
-        # ── 1. Campanha ──────────────────────────────────────────────────────
         from datetime import datetime as dt
         ts = dt.now().strftime('%Y%m%d%H%M%S')
-        camp_name = f'Camp_API_{ts}'
 
+        # ── Mapas de objetivo (v1.3) ──────────────────────────────────────────
+        # CONVERSIONS frontend → WEB_CONVERSIONS na API v1.3
+        obj_api = {
+            'VIDEO_VIEWS' : 'VIDEO_VIEWS',
+            'REACH'       : 'REACH',
+            'TRAFFIC'     : 'TRAFFIC',
+            'ENGAGEMENT'  : 'ENGAGEMENT',
+            'CONVERSIONS' : 'WEB_CONVERSIONS',
+            'WEB_CONVERSIONS': 'WEB_CONVERSIONS',
+        }.get(objective_type, 'VIDEO_VIEWS')
+
+        # optimization_goal por objetivo (VIDEO_VIEW depreciado → ENGAGED_VIEW)
+        opt_goal = {
+            'VIDEO_VIEWS'    : 'ENGAGED_VIEW',
+            'REACH'          : 'REACH',
+            'TRAFFIC'        : 'CLICK',
+            'ENGAGEMENT'     : 'FOLLOWERS',
+            'WEB_CONVERSIONS': 'CONVERT',
+        }.get(obj_api, 'ENGAGED_VIEW')
+
+        # billing_event correspondente (conforme tabela da doc)
+        billing = {
+            'ENGAGED_VIEW' : 'CPV',
+            'REACH'        : 'CPM',
+            'CLICK'        : 'CPC',
+            'FOLLOWERS'    : 'OCPM',
+            'CONVERT'      : 'OCPM',
+        }.get(opt_goal, 'CPV')
+
+        # promotion_type: obrigatório para TRAFFIC e WEB_CONVERSIONS
+        promo_type = {
+            'TRAFFIC'        : 'WEBSITE',
+            'WEB_CONVERSIONS': 'WEBSITE',
+        }.get(obj_api, None)
+
+        # ── 1. Campanha ───────────────────────────────────────────────────────
+        camp_name = f'Camp_API_{ts}'
         camp_payload = {
-            'advertiser_id'       : adv_id,
-            'campaign_name'       : camp_name,
-            'objective_type'      : objective_type,
-            'budget_mode'         : 'BUDGET_MODE_INFINITE',
-            'operation_status'    : 'ENABLE',
+            'advertiser_id' : adv_id,
+            'campaign_name' : camp_name,
+            'objective_type': obj_api,
+            'budget_mode'   : 'BUDGET_MODE_INFINITE',
         }
         if orcamento:
             try:
@@ -1273,81 +1306,111 @@ def api_criar_campanhas(bc_id):
                 camp_payload['budget']      = float(orcamento)
             except: pass
 
+        adicionar_log(f'{log_prefix} 📤 campaign → obj={obj_api} budget_mode={camp_payload["budget_mode"]}', 'info')
         rc = tt_post('campaign/create', token, camp_payload)
+        adicionar_log(f'{log_prefix} 📥 campaign code={rc.get("code")} msg={rc.get("message","")}', 'info')
+
         if rc.get('code') != 0:
-            adicionar_log(f'{log_prefix} ❌ Campanha: {rc.get("message","erro")}', 'error')
+            adicionar_log(f'{log_prefix} ❌ Campanha: {rc.get("message","?")} (code {rc.get("code")})', 'error')
             adicionar_relatorio(bc_id, bc["nome"], adv_id, 'campanha', 'falha', rc.get('message',''))
             return False
 
         campaign_id = str(rc['data']['campaign_id'])
-        adicionar_log(f'{log_prefix} ✅ Campanha criada: {campaign_id}', 'success')
+        adicionar_log(f'{log_prefix} ✅ Campanha: {campaign_id}', 'success')
 
-        # ── 2. Ad Group(s) ───────────────────────────────────────────────────
+        # ── 2. Ad Group(s) ────────────────────────────────────────────────────
         for conj_idx in range(num_conjuntos):
-            ag_name = f'Conjunto_{conj_idx+1}_{ts}'
+            ag_name = f'Conj_{conj_idx+1}_{ts}'
+
+            # Datas — formato obrigatório: "YYYY-MM-DD HH:MM:SS"
+            if data_inicio:
+                start_time = data_inicio.replace('T', ' ')
+                if len(start_time) == 16: start_time += ':00'
+            else:
+                start_time = dt.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+
+            # budget no adgroup é Required — usa orçamento ou mínimo padrão
+            ag_budget      = float(orcamento) if orcamento else 20.0
+            ag_budget_mode = 'BUDGET_MODE_DAY' if orcamento else 'BUDGET_MODE_DAY'
 
             ag_payload = {
-                'advertiser_id'     : adv_id,
-                'campaign_id'       : campaign_id,
-                'adgroup_name'      : ag_name,
-                'placement_type'    : 'PLACEMENT_TYPE_AUTOMATIC',
-                'location_ids'      : [paises_para_id(paises)],
-                'budget_mode'       : 'BUDGET_MODE_INFINITE',
-                'operation_status'  : 'ENABLE',
-                'optimization_goal' : objetivo_para_goal(objective_type),
-                'billing_event'     : objetivo_para_billing(objective_type),
+                'advertiser_id'      : adv_id,
+                'campaign_id'        : campaign_id,
+                'adgroup_name'       : ag_name,
+                'placement_type'     : 'PLACEMENT_TYPE_AUTOMATIC',
+                'location_ids'       : [str(paises_para_id(paises))],
+                'budget_mode'        : ag_budget_mode,
+                'budget'             : ag_budget,
+                'schedule_type'      : 'SCHEDULE_FROM_NOW',
+                'schedule_start_time': start_time,
+                'optimization_goal'  : opt_goal,
+                'billing_event'      : billing,
+                'bid_type'           : 'BID_TYPE_NO_BID',
+                'pacing'             : 'PACING_MODE_SMOOTH',
+                'operation_status'   : 'ENABLE',
             }
 
-            # Datas
-            if data_inicio:
-                ag_payload['schedule_start_time'] = data_inicio.replace('T', ' ')
+            # promotion_type obrigatório para TRAFFIC e WEB_CONVERSIONS
+            if promo_type:
+                ag_payload['promotion_type'] = promo_type
+
+            # Data fim
             if data_fim:
-                ag_payload['schedule_end_time']   = data_fim.replace('T', ' ')
-            else:
-                ag_payload['schedule_type'] = 'SCHEDULE_START_END'
+                end_time = data_fim.replace('T', ' ')
+                if len(end_time) == 16: end_time += ':00'
+                ag_payload['schedule_type']     = 'SCHEDULE_START_END'
+                ag_payload['schedule_end_time'] = end_time
 
-            # Pixel para conversão
-            if objective_type == 'CONVERSIONS' and pixel_id:
-                ag_payload['pixel_id']          = pixel_id
-                ag_payload['external_action']   = conv_event
-                if conv_url:
-                    ag_payload['conversion_id'] = ''  # será associado via pixel
+            # Pixel para WEB_CONVERSIONS
+            if obj_api == 'WEB_CONVERSIONS' and pixel_id:
+                ag_payload['pixel_id']          = str(pixel_id)
+                ag_payload['optimization_event'] = conv_event  # ex: PURCHASE
 
+            adicionar_log(f'{log_prefix} 📤 adgroup → goal={opt_goal} billing={billing} promo={promo_type}', 'info')
             ra = tt_post('adgroup/create', token, ag_payload)
+            adicionar_log(f'{log_prefix} 📥 adgroup code={ra.get("code")} msg={ra.get("message","")}', 'info')
+
             if ra.get('code') != 0:
-                adicionar_log(f'{log_prefix} ❌ Conjunto {conj_idx+1}: {ra.get("message","erro")}', 'error')
+                adicionar_log(f'{log_prefix} ❌ Conjunto {conj_idx+1}: {ra.get("message","?")} (code {ra.get("code")})', 'error')
                 continue
 
             adgroup_id = str(ra['data']['adgroup_id'])
             adicionar_log(f'{log_prefix} ✅ Conjunto {conj_idx+1}: {adgroup_id}', 'info')
 
-            # ── 3. Ad (criativo spark) ────────────────────────────────────────
+            # ── 3. Ad (Spark Ad via AUTH_CODE) ────────────────────────────────
             if not post_code:
                 adicionar_log(f'{log_prefix} ⚠ Sem post_code, pulando criativo', 'warn')
                 continue
 
             ad_name = f'Ad_{conj_idx+1}_{ts}'
-
-            # Tenta como Spark Ad (authorized post)
-            ad_payload = {
-                'advertiser_id' : adv_id,
-                'adgroup_id'    : adgroup_id,
-                'ad_name'       : ad_name,
-                'ad_format'     : 'SINGLE_VIDEO',
-                'ad_type'       : 'SPARK_ADS',
-                'identity_type' : 'AUTH_CODE',
-                'identity_authorized_bc_id': bc.get('tiktokBcId', ''),
-                'spark_ads_post_id': post_code,
+            # Spark Ads via Pull: identity_type=AUTH_CODE + tiktok_item_id
+            # Não precisa de video_id, image_ids nem ad_text para Spark Ads Pull
+            ad_creative = {
+                'ad_name'         : ad_name,
+                'identity_type'   : 'AUTH_CODE',
+                'identity_id'     : post_code,       # item_id do post autorizado
+                'tiktok_item_id'  : post_code,       # ID do post TikTok
+                'ad_format'       : 'SINGLE_VIDEO',
                 'operation_status': 'ENABLE',
             }
-            if conv_url and objective_type in ('TRAFFIC', 'CONVERSIONS'):
-                ad_payload['landing_page_url'] = conv_url
+            if conv_url and obj_api in ('TRAFFIC', 'WEB_CONVERSIONS'):
+                ad_creative['landing_page_url'] = conv_url
 
+            ad_payload = {
+                'advertiser_id': adv_id,
+                'adgroup_id'   : adgroup_id,
+                'creatives'    : [ad_creative],
+            }
+
+            adicionar_log(f'{log_prefix} 📤 ad → spark item_id={post_code}', 'info')
             rd = tt_post('ad/create', token, ad_payload)
+            adicionar_log(f'{log_prefix} 📥 ad code={rd.get("code")} msg={rd.get("message","")}', 'info')
+
             if rd.get('code') != 0:
-                adicionar_log(f'{log_prefix} ❌ Ad {conj_idx+1}: {rd.get("message","erro")}', 'error')
+                adicionar_log(f'{log_prefix} ❌ Ad {conj_idx+1}: {rd.get("message","?")} (code {rd.get("code")})', 'error')
             else:
-                ad_id = str(rd['data'].get('ad_ids', ['?'])[0])
+                ad_ids = rd.get('data', {}).get('ad_ids', ['?'])
+                ad_id  = str(ad_ids[0]) if ad_ids else '?'
                 adicionar_log(f'{log_prefix} ✅ Ad criado: {ad_id}', 'success')
 
         adicionar_relatorio(bc_id, bc["nome"], adv_id, 'campanha', 'sucesso', campaign_id)
@@ -1379,24 +1442,7 @@ def paises_para_id(pais_code):
     return ids.get(pais_code.upper(), 6211)
 
 
-def objetivo_para_goal(objective_type):
-    return {
-        'VIDEO_VIEWS' : 'VIDEO_VIEWS',
-        'REACH'       : 'REACH',
-        'TRAFFIC'     : 'CLICK',
-        'ENGAGEMENT'  : 'ENGAGEMENT',
-        'CONVERSIONS' : 'CONVERT',
-    }.get(objective_type, 'VIDEO_VIEWS')
-
-
-def objetivo_para_billing(objective_type):
-    return {
-        'VIDEO_VIEWS' : 'TP',
-        'REACH'       : 'CPM',
-        'TRAFFIC'     : 'CPC',
-        'ENGAGEMENT'  : 'CPE',
-        'CONVERSIONS' : 'OCPM',
-    }.get(objective_type, 'TP')
+# objetivo_para_goal e objetivo_para_billing agora inline em criar_para_conta
 
 
 if __name__ == '__main__':
