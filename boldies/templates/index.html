@@ -1389,32 +1389,64 @@ function iniciarCampanhasAPI(selectedBCs) {
   const convUrl    = (document.getElementById('camp-conv-url')||{value:''}).value.trim();
   const convEvent  = (document.getElementById('camp-conv-event')||{value:'PURCHASE'}).value;
 
+  addLog(`[API] selectedBCs: ${selectedBCs.map(b=>b.nome+'(id='+b.id+')').join(', ')}`, 'info', 'log-camp');
+  addLog(`[API] bcApiList: ${bcApiList.map(b=>b.nome+'(id='+b.id+',tok='+b.token_ok+')').join(', ')}`, 'info', 'log-camp');
+
+  let disparado = false;
   selectedBCs.forEach(bc => {
-    const apiBC = bcApiList.find(b => b.id === bc.id || b.nome === bc.nome);
-    if (!apiBC) { showToast(`BC ${bc.nome}: sem API configurada`, 'warn'); return; }
-    if (!apiBC.token_ok) { showToast(`BC ${bc.nome}: sem token OAuth`, 'error'); return; }
+    // bc vem de bcs[] que agora é igual a bcApiList[] — mesmo id
+    // Usa bc diretamente pois já tem token_ok e tiktokBcId
+    const token_ok = bc.token_ok || (bcApiList.find(b=>b.id===bc.id)||{}).token_ok;
+    if (!token_ok) {
+      addLog(`[API] ❌ ${bc.nome}: sem token OAuth`, 'error', 'log-camp');
+      showToast(`BC ${bc.nome}: sem token OAuth`, 'error');
+      return;
+    }
+
     const advIds = campContasSelecionadas[bc.id] ? [...campContasSelecionadas[bc.id]] : [];
+    addLog(`[API] 🚀 ${bc.nome} — ${advIds.length} conta(s) selecionadas, bcId=${bc.id}`, 'info', 'log-camp');
+
     const payload = {
       objetivo, post_code: postCode, num_conjuntos: numConj,
       data_inicio: dataInicio, data_fim: dataFim,
       paises, pixel_id: pixelId, conv_url: convUrl, conv_event: convEvent,
       advertiser_ids: advIds,
     };
-    addLog(`[API] 🚀 Iniciando ${bc.nome} — ${advIds.length||'todas'} conta(s)...`, 'info', 'log-camp');
-    fetch(`/api/bcs-api/${apiBC.id}/criar-campanhas-api`, {
+
+    disparado = true;
+    fetch(`/api/bcs-api/${bc.id}/criar-campanhas-api`, {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify(payload)
     }).then(r=>r.json()).then(d=>{
-      if (d.ok) { addLog(`[API] ✅ ${bc.nome}: ${d.message}`, 'success', 'log-camp'); showToast(d.message,'success'); }
-      else       { addLog(`[API] ❌ ${bc.nome}: ${d.error}`, 'error', 'log-camp'); showToast(d.error,'error'); }
-    }).catch(e=>{ addLog(`[API] ❌ Erro: ${e}`, 'error', 'log-camp'); });
+      if (d.ok) {
+        addLog(`[API] ✅ ${bc.nome}: ${d.message}`, 'success', 'log-camp');
+        showToast(d.message, 'success');
+      } else {
+        addLog(`[API] ❌ ${bc.nome}: ${d.error}`, 'error', 'log-camp');
+        showToast(`Erro: ${d.error}`, 'error');
+        document.getElementById('btn-start-camp').style.display='flex';
+        document.getElementById('btn-stop-camp').style.display='none';
+      }
+    }).catch(e=>{
+      addLog(`[API] ❌ Fetch erro: ${e}`, 'error', 'log-camp');
+      showToast('Erro de conexão com o servidor', 'error');
+      document.getElementById('btn-start-camp').style.display='flex';
+      document.getElementById('btn-stop-camp').style.display='none';
+    });
   });
-  // Volta o botão após 5s — API roda em background no servidor
-  // Os logs continuam chegando via pollStatus a cada 3s
+
+  if (!disparado) {
+    addLog('[API] ❌ Nenhum BC válido para disparar', 'error', 'log-camp');
+    document.getElementById('btn-start-camp').style.display='flex';
+    document.getElementById('btn-stop-camp').style.display='none';
+    return;
+  }
+
+  // Botão volta após 8s — logs continuam chegando via pollStatus a cada 3s
   setTimeout(()=>{
     document.getElementById('btn-start-camp').style.display='flex';
     document.getElementById('btn-stop-camp').style.display='none';
-  }, 5000);
+  }, 8000);
 }
 function stopCampanhas() {
   document.getElementById('btn-start-camp').style.display='flex';
