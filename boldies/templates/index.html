@@ -1409,11 +1409,12 @@ function iniciarCampanhasAPI(selectedBCs) {
       else       { addLog(`[API] ❌ ${bc.nome}: ${d.error}`, 'error', 'log-camp'); showToast(d.error,'error'); }
     }).catch(e=>{ addLog(`[API] ❌ Erro: ${e}`, 'error', 'log-camp'); });
   });
-  // Volta o botão após 2s (API roda em background no server)
+  // Volta o botão após 5s — API roda em background no servidor
+  // Os logs continuam chegando via pollStatus a cada 3s
   setTimeout(()=>{
     document.getElementById('btn-start-camp').style.display='flex';
     document.getElementById('btn-stop-camp').style.display='none';
-  }, 2000);
+  }, 5000);
 }
 function stopCampanhas() {
   document.getElementById('btn-start-camp').style.display='flex';
@@ -1505,7 +1506,15 @@ function loadServerStats() {
 }
 function pollStatus() {
   fetch('/api/status').then(r=>r.json()).then(data=>{
-    if(data.logs&&data.logs.length) data.logs.forEach(log=>addLog('[worker] '+log.msg,log.type,'log-body'));
+    if(data.logs&&data.logs.length) data.logs.forEach(log=>{
+      // Logs de campanha vão pro terminal de campanhas E pro geral
+      const isCamp = log.msg.includes('Campanha') || log.msg.includes('Conjunto') || log.msg.includes('campanha') || log.msg.includes('Ad ') || log.msg.includes('[API]') || log.msg.includes('criado') || log.msg.includes('Criando') || log.msg.includes('adgroup') || log.msg.includes('Camp_API');
+      const isContas = log.msg.includes('conta') || log.msg.includes('Conta') || log.msg.includes('criação') || log.msg.includes('criando conta');
+      if(isCamp) addLog(log.msg, log.type, 'log-camp');
+      if(isContas) addLog(log.msg, log.type, 'log-contas');
+      // Sempre vai pro terminal geral também
+      addLog(log.msg, log.type, 'log-body');
+    });
     if(data.relatorios&&data.relatorios.length) {
       data.relatorios.forEach(r=>{ relatorios.push(r); const bc=bcs.find(b=>b.id==r.bc_id); if(bc){if(r.status==='sucesso')bc.campanhasSucesso=(bc.campanhasSucesso||0)+1;else bc.campanhasFalha=(bc.campanhasFalha||0)+1;} });
       salvarDados(); loadRelatorio();
