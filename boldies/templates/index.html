@@ -250,6 +250,11 @@ hr.div { border:none; border-top:1px solid var(--border); margin:20px 0; }
 .tab-pane.active { display:block; }
 
 /* Spark post pill */
+.conta-item:hover { background: rgba(255,255,255,0.03) !important; }
+.conta-item.selected { background: rgba(37,244,238,0.05); }
+.btn-xs { padding:5px 10px; font-size:10px; border-radius:6px; }
+.spinning { animation: spin 1s linear infinite; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .spark-pill { display:flex; align-items:center; gap:10px; background:var(--s2); border:1px solid var(--border2); border-radius:9px; padding:10px 14px; margin-bottom:8px; transition:border-color 0.15s; }
 .spark-pill:hover { border-color:rgba(37,244,238,0.25); }
 .spark-pill-label { flex:1; font-size:12px; font-family:var(--mono); color:var(--text); }
@@ -316,6 +321,10 @@ input[type=date].form-input { color-scheme:dark; }
     <div class="nav-item" onclick="showPage('posts')">
       <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 10l-4 4l6 6l4-16l-18 7l4 2l2 6l3-4"/></svg></span>
       Spark Posts
+    </div>
+    <div class="nav-item" onclick="showPage('visao')">
+      <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/></svg></span>
+      Visao Geral
     </div>
 
     <div class="nav-label" style="margin-top:14px">Sistema</div>
@@ -500,6 +509,10 @@ input[type=date].form-input { color-scheme:dark; }
         <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
         Parar
       </button>
+      <button class="btn btn-danger btn-sm" onclick="irDesativarTodas()">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="4"/></svg>
+        Desativar Todas
+      </button>
     </div>
 
     <div class="grid-2">
@@ -522,6 +535,26 @@ input[type=date].form-input { color-scheme:dark; }
 
         <div class="section-head">Selecionar BCs</div>
         <div id="camp-bc-list" style="display:flex;flex-direction:column;gap:8px"></div>
+
+        <div id="camp-contas-section" style="display:none;margin-top:16px">
+          <div class="section-head" style="display:flex;align-items:center;justify-content:space-between">
+            <span>Contas de Anúncio</span>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-ghost btn-xs" onclick="selecionarTodasContas(true)">Todas</button>
+              <button class="btn btn-ghost btn-xs" onclick="selecionarTodasContas(false)">Nenhuma</button>
+            </div>
+          </div>
+          <div style="background:var(--s1);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+            <div id="camp-contas-loading" style="display:none;padding:14px;text-align:center;font-family:var(--mono);font-size:11px;color:var(--text2)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--tt-cyan)" stroke-width="2" class="spinning" style="margin-right:6px;vertical-align:middle"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>Carregando contas...
+            </div>
+            <div id="camp-contas-list" style="max-height:320px;overflow-y:auto"></div>
+            <div id="camp-contas-footer" style="display:none;padding:10px 14px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+              <span style="font-size:11px;font-family:var(--mono);color:var(--text2)"><span id="camp-contas-sel-count">0</span> de <span id="camp-contas-total-count">0</span> selecionadas</span>
+              <span id="camp-contas-badge" style="font-size:10px;font-family:var(--mono);color:var(--tt-cyan)"></span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- COLUNA DIREITA -->
@@ -614,6 +647,56 @@ input[type=date].form-input { color-scheme:dark; }
     </div>
     <div id="posts-list">
       <div class="empty"><div class="empty-icon">🎬</div><div class="empty-text">Nenhum post salvo ainda. Adicione links de vídeos TikTok para reusar nas campanhas.</div></div>
+    </div>
+  </div>
+
+
+  <!-- ── VISAO GERAL ── -->
+  <div class="page" id="page-visao">
+    <div class="page-header">
+      <div><div class="page-title">Visao Geral</div><div class="page-sub">// campanhas · conjuntos · gastos por conta</div></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select class="form-input" id="visao-bc-sel" style="width:200px" onchange="onVisaoBC()">
+          <option value="">Selecione o BC...</option>
+        </select>
+        <select class="form-input" id="visao-periodo" style="width:140px">
+          <option value="today">Hoje</option>
+          <option value="7d" selected>Ultimos 7 dias</option>
+          <option value="30d">Ultimos 30 dias</option>
+          <option value="custom">Personalizado</option>
+        </select>
+        <div id="visao-datas-custom" style="display:none;gap:6px">
+          <input type="date" class="form-input" id="visao-start" style="width:140px;font-size:11px;padding:9px 10px">
+          <input type="date" class="form-input" id="visao-end"   style="width:140px;font-size:11px;padding:9px 10px">
+        </div>
+        <button class="btn btn-teal btn-sm" onclick="carregarVisao()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/><polyline points="21 3 21 9 15 9"/></svg>
+          Atualizar
+        </button>
+        <button class="btn btn-danger btn-sm" id="btn-disable-all" onclick="desativarTodas()" style="display:none">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="4"/></svg>
+          Desativar Todas
+        </button>
+      </div>
+    </div>
+
+    <!-- Periodo select watcher -->
+    <div id="visao-kpis" class="kpi-strip" style="grid-template-columns:repeat(4,1fr);display:none;margin-bottom:20px">
+      <div class="kpi cyan"><div class="kpi-label">Contas</div><div class="kpi-val" id="vk-contas">0</div></div>
+      <div class="kpi green"><div class="kpi-label">Campanhas</div><div class="kpi-val" id="vk-campanhas">0</div></div>
+      <div class="kpi purple"><div class="kpi-label">Conjuntos</div><div class="kpi-val" id="vk-conjuntos">0</div></div>
+      <div class="kpi red"><div class="kpi-label">Gasto Total</div><div class="kpi-val" id="vk-gasto" style="font-size:28px;letter-spacing:-2px">R$ 0</div></div>
+    </div>
+
+    <div id="visao-loading" style="display:none;text-align:center;padding:40px;font-family:var(--mono);font-size:12px;color:var(--text2)">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--tt-cyan)" stroke-width="2" class="spinning" style="margin-bottom:10px"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg><br>Carregando dados da API TikTok...
+    </div>
+
+    <div id="visao-body"></div>
+
+    <div id="visao-empty" class="empty">
+      <div class="empty-icon">📊</div>
+      <div class="empty-text">Selecione um BC com Token OAuth para ver os dados.</div>
     </div>
   </div>
 
@@ -730,10 +813,28 @@ input[type=date].form-input { color-scheme:dark; }
 
 <!-- ── MODALS ── -->
 <div class="modal-overlay" id="modal-add-bc">
-  <div class="modal">
+  <div class="modal" style="width:540px">
     <div class="modal-title">Adicionar Business Center</div>
     <div class="form-group"><label class="form-label">Nome do BC</label><input type="text" class="form-input" id="bc-nome" placeholder="Ex: BC Brasil 1"></div>
-    <div class="form-group"><label class="form-label">Profile ID — ADS Power</label><input type="text" class="form-input" id="bc-profile-id" placeholder="Ex: k1952o9j"></div>
+    <div style="background:rgba(37,244,238,0.04);border:1px solid rgba(37,244,238,0.15);border-radius:10px;padding:14px;margin-bottom:14px">
+      <div style="font-size:10px;font-family:var(--mono);color:var(--tt-cyan);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px">ADS Power — Automação Browser</div>
+      <div class="form-group" style="margin-bottom:0"><label class="form-label">Profile ID</label><input type="text" class="form-input" id="bc-profile-id" placeholder="Ex: k1952o9j"></div>
+    </div>
+    <div style="background:rgba(254,44,85,0.04);border:1px solid rgba(254,44,85,0.15);border-radius:10px;padding:14px;margin-bottom:14px">
+      <div style="font-size:10px;font-family:var(--mono);color:var(--tt-red);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px">TikTok API — Dados and Gestao</div>
+      <div class="form-group" style="margin-bottom:10px"><label class="form-label">BC ID (TikTok Business Center)</label><input type="text" class="form-input" id="bc-tiktok-id" placeholder="Ex: 7607905792628621313" oninput="toggleOAuthSection()"></div>
+      <div id="oauth-section" style="display:none">
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn btn-primary btn-sm" onclick="abrirOAuth()" style="flex:1">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            Abrir OAuth TikTok
+          </button>
+          <span id="oauth-status" style="font-size:10px;font-family:var(--mono);color:var(--text3)">nao conectado</span>
+        </div>
+        <div class="tip cyan" style="margin-top:8px">Clique para abrir o TikTok e autorizar. Apos autorizar volte aqui e clique em Verificar.</div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:8px;width:100%" onclick="verificarOAuth()">Verificar Conexao</button>
+      </div>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
       <button class="btn btn-primary" onclick="salvarBC()">Salvar BC</button>
@@ -805,7 +906,7 @@ function showPage(name) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
-  const map = {dashboard:'dashboard',bcs:'business',contas:'criar',campanhas:'campanha',posts:'spark',relatorios:'relat',config:'config'};
+  const map = {dashboard:'dashboard',bcs:'business',contas:'criar',campanhas:'campanha',posts:'spark',visao:'visao',relatorios:'relat',config:'config'};
   document.querySelectorAll('.nav-item').forEach(n=>{
     if (n.textContent.toLowerCase().includes(map[name]||name)) n.classList.add('active');
   });
@@ -826,16 +927,7 @@ function openAddBC() {
 }
 function closeModal() { document.querySelectorAll('.modal-overlay').forEach(m=>m.classList.remove('open')); }
 
-function salvarBC() {
-  const nome = document.getElementById('bc-nome').value.trim();
-  const profileId = document.getElementById('bc-profile-id').value.trim();
-  if (!nome||!profileId) { showToast('Preencha todos os campos!', 'warn'); return; }
-  bcs.push({id:Date.now(),nome,profileId,status:'idle',totalContas:0,campanhasSucesso:0,campanhasFalha:0,contasCriadas:0});
-  salvarDados(); closeModal(); updateNavBadge();
-  renderBCTable(); renderDashboard(); renderContasBCList(); renderCampBCList(); atualizarUploadBCSelect();
-  addLog('BC "'+nome+'" adicionado!','success'); showToast('BC "'+nome+'" adicionado!','success');
-  loadServerStats();
-}
+// salvarBC moved to bottom
 
 function deleteBC(idx) { deleteIdx = idx; document.getElementById('modal-delete').classList.add('open'); }
 function confirmarDelete() {
@@ -847,13 +939,7 @@ function confirmarDelete() {
   }
   closeModal();
 }
-function editBC(idx) {
-  const bc = bcs[idx];
-  document.getElementById('bc-nome').value = bc.nome;
-  document.getElementById('bc-profile-id').value = bc.profileId;
-  bcs.splice(idx,1); salvarDados();
-  document.getElementById('modal-add-bc').classList.add('open');
-}
+// editBC moved to bottom
 function salvarDados() {
   localStorage.setItem('tiktok_bcs', JSON.stringify(bcs));
   localStorage.setItem('tiktok_relatorios', JSON.stringify(relatorios));
@@ -924,18 +1010,170 @@ function toggleContasBC(id, el) {
   else { contasBcSelecionados.add(id); el.style.borderColor='rgba(37,244,238,0.35)'; document.getElementById('contas-badge-'+id).className='bc-status running'; document.getElementById('contas-badge-'+id).innerText='✓ Selecionado'; }
   document.getElementById('contas-bc-count').innerText=contasBcSelecionados.size;
 }
+// ── Contas selecionadas por BC: { bcId: Set(advIds) }
+let campContasSelecionadas = {};
+
 function renderCampBCList() {
   const div = document.getElementById('camp-bc-list');
   if (!bcs.length) { div.innerHTML='<div class="empty"><div class="empty-icon">🏢</div><div class="empty-text">Cadastre BCs primeiro</div></div>'; return; }
   div.innerHTML = bcs.map(bc=>{
     const sel = campBcSelecionados.has(bc.id);
-    return `<div class="bc-card" onclick="toggleCampBC(${bc.id},this)" id="camp-bc-${bc.id}" style="cursor:pointer;border-color:${sel?'rgba(37,244,238,0.35)':'var(--border)'}"><div class="bc-card-top" style="margin-bottom:0"><div><div class="bc-name">${bc.nome}</div><div class="bc-pid">${bc.profileId}</div></div><span class="bc-status ${sel?'running':'idle'}" id="camp-badge-${bc.id}">${sel?'✓ Selecionado':'Selecionar'}</span></div></div>`;
+    const apiBC = bcApiList.find(b => b.nome === bc.nome || b.profileId === bc.profileId);
+    const temAPI = apiBC && apiBC.token_ok;
+    return `<div class="bc-card" onclick="toggleCampBC(${bc.id},this,'${apiBC?apiBC.id:''}',${temAPI})" id="camp-bc-${bc.id}" style="cursor:pointer;border-color:${sel?'rgba(37,244,238,0.35)':'var(--border)'}">
+      <div class="bc-card-top" style="margin-bottom:0">
+        <div>
+          <div class="bc-name">${bc.nome}</div>
+          <div class="bc-pid">${bc.profileId||'—'} ${temAPI?'<span style="color:var(--tt-cyan);margin-left:4px">· API ✓</span>':''}</div>
+        </div>
+        <span class="bc-status ${sel?'running':'idle'}" id="camp-badge-${bc.id}">${sel?'✓ Selecionado':'Selecionar'}</span>
+      </div>
+    </div>`;
   }).join('');
 }
-function toggleCampBC(id, el) {
-  if (campBcSelecionados.has(id)) { campBcSelecionados.delete(id); el.style.borderColor='var(--border)'; document.getElementById('camp-badge-'+id).className='bc-status idle'; document.getElementById('camp-badge-'+id).innerText='Selecionar'; }
-  else { campBcSelecionados.add(id); el.style.borderColor='rgba(37,244,238,0.35)'; document.getElementById('camp-badge-'+id).className='bc-status running'; document.getElementById('camp-badge-'+id).innerText='✓ Selecionado'; }
+
+function toggleCampBC(id, el, apiId, temAPI) {
+  if (campBcSelecionados.has(id)) {
+    campBcSelecionados.delete(id);
+    el.style.borderColor='var(--border)';
+    document.getElementById('camp-badge-'+id).className='bc-status idle';
+    document.getElementById('camp-badge-'+id).innerText='Selecionar';
+    document.getElementById('camp-contas-section').style.display='none';
+  } else {
+    // Deselect all others first (single BC selection for account listing)
+    campBcSelecionados.forEach(oldId => {
+      const oldEl = document.getElementById('camp-bc-'+oldId);
+      if (oldEl) { oldEl.style.borderColor='var(--border)'; }
+      const badge = document.getElementById('camp-badge-'+oldId);
+      if (badge) { badge.className='bc-status idle'; badge.innerText='Selecionar'; }
+    });
+    campBcSelecionados.clear();
+    campBcSelecionados.add(id);
+    el.style.borderColor='rgba(37,244,238,0.35)';
+    document.getElementById('camp-badge-'+id).className='bc-status running';
+    document.getElementById('camp-badge-'+id).innerText='✓ Selecionado';
+
+    // Load accounts if BC has API token
+    if (temAPI && apiId) {
+      carregarContasBC(apiId, id);
+    } else {
+      document.getElementById('camp-contas-section').style.display='none';
+    }
+  }
   document.getElementById('camp-bc-count').innerText=campBcSelecionados.size;
+}
+
+function carregarContasBC(apiId, localBcId) {
+  const section = document.getElementById('camp-contas-section');
+  const loading = document.getElementById('camp-contas-loading');
+  const list    = document.getElementById('camp-contas-list');
+  const footer  = document.getElementById('camp-contas-footer');
+
+  section.style.display = 'block';
+  loading.style.display = 'block';
+  list.innerHTML = '';
+  footer.style.display = 'none';
+
+  fetch(`/api/bcs-api/${apiId}/sync`, {method:'POST'})
+    .then(r=>r.json())
+    .then(d => {
+      loading.style.display = 'none';
+      if (!d.ok) {
+        list.innerHTML = `<div style="padding:14px;font-family:var(--mono);font-size:11px;color:var(--tt-red)">${d.error}</div>`;
+        return;
+      }
+      // Load full BC data with account names
+      return fetch('/api/bcs-api').then(r=>r.json()).then(bcList => {
+        const bc = bcList.find(b => b.id === apiId);
+        const accounts = bc ? (bc.accounts || {}) : {};
+        const advIds   = bc ? (bc.advertiser_ids || []) : d.advertiser_ids || [];
+
+        // Init selection: all selected by default
+        if (!campContasSelecionadas[localBcId]) {
+          campContasSelecionadas[localBcId] = new Set(advIds);
+        }
+
+        renderContasBC(advIds, accounts, localBcId);
+        footer.style.display = 'flex';
+        atualizarContadorContas(localBcId, advIds.length);
+        document.getElementById('camp-contas-badge').innerText = bc && bc.nome ? bc.nome : '';
+      });
+    })
+    .catch(e => {
+      loading.style.display = 'none';
+      list.innerHTML = `<div style="padding:14px;font-family:var(--mono);font-size:11px;color:var(--tt-red)">Erro: ${e.message}</div>`;
+    });
+}
+
+function renderContasBC(advIds, accounts, localBcId) {
+  const list = document.getElementById('camp-contas-list');
+  if (!advIds.length) {
+    list.innerHTML = '<div style="padding:14px;font-family:var(--mono);font-size:11px;color:var(--text2)">Nenhuma conta encontrada neste BC.</div>';
+    return;
+  }
+  list.innerHTML = advIds.map((advId, i) => {
+    const info = accounts[String(advId)] || {};
+    const nome = info.name || '—';
+    const sel  = campContasSelecionadas[localBcId] && campContasSelecionadas[localBcId].has(advId);
+    return `<div class="conta-item ${sel?'selected':''}" id="conta-item-${advId}" onclick="toggleConta('${advId}',${localBcId},${advIds.length})"
+      style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.15s;${i===advIds.length-1?'border-bottom:none;':''};background:${sel?'rgba(37,244,238,0.05)':'transparent'}">
+      <div style="width:16px;height:16px;border-radius:4px;border:1.5px solid ${sel?'var(--tt-cyan)':'var(--border)'};background:${sel?'var(--tt-cyan)':'transparent'};display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.15s">
+        ${sel?'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>':''} 
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:600;color:var(--text1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nome}</div>
+        <div style="font-size:10px;font-family:var(--mono);color:var(--text2);margin-top:1px">${advId}</div>
+      </div>
+      ${info.status ? `<span style="font-size:9px;font-family:var(--mono);color:${info.status==='STATUS_ENABLE'?'var(--green)':'var(--text3)'}">${info.status==='STATUS_ENABLE'?'ATIVA':'PAUSADA'}</span>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function toggleConta(advId, localBcId, total) {
+  if (!campContasSelecionadas[localBcId]) campContasSelecionadas[localBcId] = new Set();
+  const set = campContasSelecionadas[localBcId];
+  if (set.has(advId)) set.delete(advId);
+  else set.add(advId);
+
+  // Update visual
+  const item = document.getElementById('conta-item-'+advId);
+  if (item) {
+    const sel = set.has(advId);
+    item.style.background = sel ? 'rgba(37,244,238,0.05)' : 'transparent';
+    const box = item.querySelector('div[style*="border-radius:4px"]');
+    if (box) {
+      box.style.border = `1.5px solid ${sel?'var(--tt-cyan)':'var(--border)'}`;
+      box.style.background = sel ? 'var(--tt-cyan)' : 'transparent';
+      box.innerHTML = sel ? '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : '';
+    }
+  }
+  atualizarContadorContas(localBcId, total);
+}
+
+function selecionarTodasContas(sel) {
+  const localBcId = [...campBcSelecionados][0];
+  if (!localBcId) return;
+  const items = document.querySelectorAll('[id^="conta-item-"]');
+  if (!campContasSelecionadas[localBcId]) campContasSelecionadas[localBcId] = new Set();
+  const set = campContasSelecionadas[localBcId];
+  items.forEach(item => {
+    const advId = item.id.replace('conta-item-','');
+    if (sel) set.add(advId); else set.delete(advId);
+    item.style.background = sel ? 'rgba(37,244,238,0.05)' : 'transparent';
+    const box = item.querySelector('div[style*="border-radius:4px"]');
+    if (box) {
+      box.style.border = `1.5px solid ${sel?'var(--tt-cyan)':'var(--border)'}`;
+      box.style.background = sel ? 'var(--tt-cyan)' : 'transparent';
+      box.innerHTML = sel ? '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : '';
+    }
+  });
+  atualizarContadorContas(localBcId, items.length);
+}
+
+function atualizarContadorContas(localBcId, total) {
+  const set = campContasSelecionadas[localBcId] || new Set();
+  document.getElementById('camp-contas-sel-count').innerText = set.size;
+  document.getElementById('camp-contas-total-count').innerText = total;
 }
 
 // ── LOG ───────────────────────────────────────────────────────────────────────
@@ -982,7 +1220,8 @@ function iniciarEmFila(lista, quantidade, modo) {
           data_fim:document.getElementById('camp-data-fim').value,
           objetivo:document.getElementById('camp-objetivo').value,
           paises:document.getElementById('camp-pais').value,
-          bc_id:bc.id, bc_nome:bc.nome
+          bc_id:bc.id, bc_nome:bc.nome,
+          advertiser_ids: campContasSelecionadas[bc.id] ? [...campContasSelecionadas[bc.id]] : []
         };
     addLog(`Iniciando BC: ${bc.nome} (${rodando}/${maxSimultaneos} slots)`,'info',logTarget);
     fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
@@ -1153,6 +1392,230 @@ updateNavBadge(); renderDashboard(); renderBCTable(); atualizarUploadBCSelect();
 loadServerStats(); loadSparkPosts();
 setInterval(pollStatus, 3000);
 setInterval(loadServerStats, 15000);
+
+// ── BC TIKTOK API ─────────────────────────────────────────────────────────────
+let bcApiList = [];
+let oauthWindowRef = null;
+
+function toggleOAuthSection() {
+  const id  = document.getElementById('bc-tiktok-id').value.trim();
+  const sec = document.getElementById('oauth-section');
+  if (sec) sec.style.display = id ? 'block' : 'none';
+}
+
+function abrirOAuth() {
+  const bcId = document.getElementById('bc-tiktok-id').value.trim();
+  if (!bcId) { showToast('Informe o BC ID primeiro!', 'warn'); return; }
+  fetch('/api/oauth/url?bc_id=' + bcId).then(r=>r.json()).then(d=>{
+    if (d.ok) {
+      oauthWindowRef = window.open(d.url, '_blank', 'width=700,height=600');
+      document.getElementById('oauth-status').innerText = 'aguardando...';
+      document.getElementById('oauth-status').style.color = 'var(--orange)';
+    }
+  }).catch(()=>showToast('Erro ao gerar URL OAuth', 'error'));
+}
+
+function verificarOAuth() {
+  const bcId = document.getElementById('bc-tiktok-id').value.trim();
+  if (!bcId) return;
+  fetch('/api/bcs-api').then(r=>r.json()).then(list=>{
+    const bc = list.find(b => b.tiktokBcId === bcId);
+    if (bc && bc.token_ok) {
+      document.getElementById('oauth-status').innerText = '✓ conectado';
+      document.getElementById('oauth-status').style.color = 'var(--green)';
+      showToast('OAuth conectado!', 'success');
+    } else {
+      document.getElementById('oauth-status').innerText = 'nao conectado';
+      document.getElementById('oauth-status').style.color = 'var(--text3)';
+      showToast('Ainda nao conectado. Autorize no TikTok e tente novamente.', 'warn');
+    }
+  });
+}
+
+function loadBcsApi() {
+  fetch('/api/bcs-api').then(r=>r.json()).then(list=>{
+    bcApiList = list;
+    // Atualiza select da visao geral
+    const sel = document.getElementById('visao-bc-sel');
+    if (sel) {
+      const cur = sel.value;
+      sel.innerHTML = '<option value="">Selecione o BC...</option>' +
+        list.map(b=>`<option value="${b.id}">${b.nome}${b.token_ok?' ✓':' (sem token)'}</option>`).join('');
+      if (cur) sel.value = cur;
+    }
+  }).catch(()=>{});
+}
+
+// ── SALVAR BC (atualizado com tiktokBcId) ─────────────────────────────────────
+function salvarBC() {
+  const nome      = document.getElementById('bc-nome').value.trim();
+  const profileId = document.getElementById('bc-profile-id').value.trim();
+  const tiktokId  = document.getElementById('bc-tiktok-id') ? document.getElementById('bc-tiktok-id').value.trim() : '';
+  if (!nome) { showToast('Informe o nome do BC!', 'warn'); return; }
+
+  // Salva no localStorage (ADS Power)
+  bcs.push({id:Date.now(), nome, profileId, tiktokBcId:tiktokId, status:'idle',
+            totalContas:0, campanhasSucesso:0, campanhasFalha:0, contasCriadas:0});
+  salvarDados(); closeModal(); updateNavBadge();
+  renderBCTable(); renderDashboard(); renderContasBCList(); renderCampBCList(); atualizarUploadBCSelect();
+  addLog('BC "'+nome+'" adicionado!', 'success'); showToast('BC "'+nome+'" adicionado!', 'success');
+
+  // Se tem TikTok ID, salva tambem na API
+  if (tiktokId) {
+    fetch('/api/bcs-api', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({nome, profileId, tiktokBcId: tiktokId})
+    }).then(r=>r.json()).then(d=>{ if(d.ok){ loadBcsApi(); } });
+  }
+
+  loadServerStats();
+}
+
+// ── EDIT BC (atualizado) ──────────────────────────────────────────────────────
+function editBC(idx) {
+  const bc = bcs[idx];
+  document.getElementById('bc-nome').value = bc.nome;
+  document.getElementById('bc-profile-id').value = bc.profileId || '';
+  const tikEl = document.getElementById('bc-tiktok-id');
+  if (tikEl) { tikEl.value = bc.tiktokBcId || ''; toggleOAuthSection(); }
+  bcs.splice(idx,1); salvarDados();
+  document.getElementById('modal-add-bc').classList.add('open');
+}
+
+// ── VISAO GERAL ───────────────────────────────────────────────────────────────
+function onVisaoBC() {
+  const bcId = document.getElementById('visao-bc-sel').value;
+  const btnDis = document.getElementById('btn-disable-all');
+  if (bcId) { btnDis.style.display='flex'; carregarVisao(); }
+  else { btnDis.style.display='none'; }
+}
+
+document.getElementById('visao-periodo').addEventListener('change', function() {
+  const datas = document.getElementById('visao-datas-custom');
+  datas.style.display = this.value === 'custom' ? 'flex' : 'none';
+});
+
+function getPeriodoDates() {
+  const periodo = document.getElementById('visao-periodo').value;
+  const hoje = new Date();
+  const fmt = d => d.toISOString().split('T')[0];
+  if (periodo === 'today') return [fmt(hoje), fmt(hoje)];
+  if (periodo === '7d')  { const s=new Date(hoje); s.setDate(s.getDate()-6); return [fmt(s),fmt(hoje)]; }
+  if (periodo === '30d') { const s=new Date(hoje); s.setDate(s.getDate()-29); return [fmt(s),fmt(hoje)]; }
+  // custom
+  return [document.getElementById('visao-start').value || fmt(hoje),
+          document.getElementById('visao-end').value   || fmt(hoje)];
+}
+
+function carregarVisao() {
+  const bcId = document.getElementById('visao-bc-sel').value;
+  if (!bcId) { showToast('Selecione um BC!', 'warn'); return; }
+  const [start, end] = getPeriodoDates();
+  document.getElementById('visao-loading').style.display = 'block';
+  document.getElementById('visao-body').innerHTML = '';
+  document.getElementById('visao-empty').style.display = 'none';
+  document.getElementById('visao-kpis').style.display = 'none';
+
+  fetch(`/api/bcs-api/${bcId}/overview`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({start_date: start, end_date: end})
+  }).then(r=>r.json()).then(d=>{
+    document.getElementById('visao-loading').style.display = 'none';
+    if (!d.ok) { showToast(d.error || 'Erro ao carregar', 'error'); document.getElementById('visao-empty').style.display='block'; return; }
+    renderVisao(d.data);
+  }).catch(e=>{ document.getElementById('visao-loading').style.display='none'; showToast('Erro de conexao', 'error'); });
+}
+
+function renderVisao(data) {
+  if (!data || !data.length) { document.getElementById('visao-empty').style.display='block'; return; }
+  const bcId = document.getElementById('visao-bc-sel').value;
+
+  // KPIs
+  let totalContas=0, totalCamps=0, totalAdgroups=0, totalGasto=0;
+  data.forEach(acc=>{
+    totalContas++;
+    totalCamps    += acc.campaigns.length;
+    totalAdgroups += acc.campaigns.reduce((s,c)=>s+c.adgroups.length,0);
+    totalGasto    += acc.total_spend;
+  });
+  document.getElementById('vk-contas').innerText    = totalContas;
+  document.getElementById('vk-campanhas').innerText = totalCamps;
+  document.getElementById('vk-conjuntos').innerText = totalAdgroups;
+  document.getElementById('vk-gasto').innerText     = 'R$ ' + totalGasto.toFixed(2);
+  document.getElementById('visao-kpis').style.display = 'grid';
+
+  // Body
+  const body = document.getElementById('visao-body');
+  body.innerHTML = data.map(acc => {
+    const campRows = acc.campaigns.length ? acc.campaigns.map(camp => {
+      const statusColor = camp.status==='ENABLE'?'var(--green)':camp.status==='DISABLE'?'var(--text3)':'var(--orange)';
+      const statusTxt   = camp.status==='ENABLE'?'Ativa':'Pausada';
+      const agRows = camp.adgroups.map(ag=>
+        `<tr style="background:rgba(0,0,0,0.2)">
+          <td style="padding:8px 16px 8px 36px;font-size:11px;font-family:var(--mono);color:var(--text2)">↳ ${ag.name}</td>
+          <td style="padding:8px 16px;font-size:10px"><span style="color:${ag.status==='ENABLE'?'var(--green)':'var(--text3)'};font-family:var(--mono)">${ag.status==='ENABLE'?'Ativo':'Pausado'}</span></td>
+          <td colspan="3"></td>
+        </tr>`
+      ).join('');
+      return `<tr>
+        <td style="font-size:12px;font-weight:600;padding-left:24px">${camp.name}</td>
+        <td><span style="color:${statusColor};font-family:var(--mono);font-size:10px">${statusTxt}</span></td>
+        <td style="font-family:var(--mono);font-size:11px">R$ ${camp.spend.toFixed(2)}</td>
+        <td style="font-family:var(--mono);font-size:11px;color:var(--text2)">${camp.impressions.toLocaleString()}</td>
+        <td>
+          <div style="display:flex;gap:4px">
+            ${camp.status==='ENABLE'?`<button class="btn btn-danger btn-xs" onclick="pausarCampanha('${bcId}','${acc.advertiser_id}','${camp.id}',this)">Pausar</button>`:''}
+          </div>
+        </td>
+      </tr>${agRows}`;
+    }).join('') : `<tr><td colspan="5" style="text-align:center;padding:16px;color:var(--text3);font-family:var(--mono);font-size:11px">Sem campanhas no periodo</td></tr>`;
+
+    return `<div class="cfg-card" style="margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div>
+          <div style="font-size:15px;font-weight:700">${acc.advertiser_name}</div>
+          <div style="font-size:10px;color:var(--text2);font-family:var(--mono)">${acc.advertiser_id} · ${acc.campaigns.length} campanhas</div>
+        </div>
+        <div style="font-size:22px;font-weight:200;font-family:'Plus Jakarta Sans',sans-serif;color:var(--tt-red);letter-spacing:-2px">R$ ${acc.total_spend.toFixed(2)}</div>
+      </div>
+      <div class="table-wrap" style="border-radius:8px">
+        <table>
+          <thead><tr><th>Campanha</th><th>Status</th><th>Gasto</th><th>Impressoes</th><th>Acoes</th></tr></thead>
+          <tbody>${campRows}</tbody>
+        </table>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function pausarCampanha(bcId, advId, campId, btn) {
+  btn.disabled = true; btn.innerText = '...';
+  fetch(`/api/bcs-api/${bcId}/disable-campaign`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({advertiser_id: advId, campaign_id: campId})
+  }).then(r=>r.json()).then(d=>{
+    if (d.ok) { showToast('Campanha pausada!', 'success'); btn.style.display='none'; carregarVisao(); }
+    else { showToast(d.error || 'Erro ao pausar', 'error'); btn.disabled=false; btn.innerText='Pausar'; }
+  });
+}
+
+function desativarTodas() {
+  const bcId = document.getElementById('visao-bc-sel').value;
+  if (!bcId) return;
+  if (!confirm('Desativar TODAS as campanhas de TODAS as contas deste BC?')) return;
+  fetch(`/api/bcs-api/${bcId}/disable-all`, {method:'POST'}).then(r=>r.json()).then(d=>{
+    showToast(d.message || 'Desativando em background...', d.ok?'warn':'error');
+    addLog('[API] Desativar todas iniciado', 'warn');
+  });
+}
+
+function irDesativarTodas() {
+  showPage('visao');
+  showToast('Selecione o BC e clique em Desativar Todas', 'info');
+}
+
+// ── INIT adicional ────────────────────────────────────────────────────────────
+loadBcsApi();
+
 </script>
 </body>
 </html>
