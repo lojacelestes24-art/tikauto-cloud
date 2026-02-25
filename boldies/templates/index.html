@@ -701,6 +701,12 @@ input[type=date].form-input { color-scheme:dark; }
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/><polyline points="21 3 21 9 15 9"/></svg>
           Atualizar
         </button>
+        <select class="form-input" id="visao-sort" style="width:170px" onchange="renderVisao(window._lastVisaoData)">
+          <option value="spend_desc">💸 Maior gasto primeiro</option>
+          <option value="spend_asc">💰 Menor gasto primeiro</option>
+          <option value="camps_desc">📊 Mais campanhas</option>
+          <option value="name_asc">🔤 Nome A→Z</option>
+        </select>
         <button class="btn btn-danger btn-sm" id="btn-disable-all" onclick="desativarTodas()" style="display:none">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="4"/></svg>
           Desativar Todas
@@ -1677,13 +1683,32 @@ function carregarVisao() {
   }).catch(e=>{ document.getElementById('visao-loading').style.display='none'; showToast('Erro de conexao', 'error'); });
 }
 
+// Formata valor com moeda correta
+function fmtMoeda(valor, currency) {
+  const c = (currency||'BRL').toUpperCase();
+  const simbolos = {BRL:'R$', USD:'US$', EUR:'€', GBP:'£', MXN:'MX$', ARS:'AR$', COP:'COP$', CLP:'CLP$', PEN:'S/'};
+  const sym = simbolos[c] || c;
+  return `${sym} ${valor.toFixed(2)}`;
+}
+
 function renderVisao(data) {
   if (!data || !data.length) { document.getElementById('visao-empty').style.display='block'; return; }
-  const bcId = document.getElementById('visao-bc-sel').value;
+  window._lastVisaoData = data;  // guarda para re-render ao mudar ordenação
+  const bcId   = document.getElementById('visao-bc-sel').value;
+  const sort   = (document.getElementById('visao-sort')||{value:'spend_desc'}).value;
 
-  // KPIs
+  // Ordena contas
+  let sorted = [...data];
+  if (sort === 'spend_desc') sorted.sort((a,b) => b.total_spend - a.total_spend);
+  if (sort === 'spend_asc')  sorted.sort((a,b) => a.total_spend - b.total_spend);
+  if (sort === 'camps_desc') sorted.sort((a,b) => b.campaigns.length - a.campaigns.length);
+  if (sort === 'name_asc')   sorted.sort((a,b) => a.advertiser_name.localeCompare(b.advertiser_name));
+
+  // KPIs — usa moeda da primeira conta com gasto > 0, senão pega a primeira
+  const refAcc = sorted.find(a=>a.total_spend>0) || sorted[0];
+  const moedaGlobal = refAcc ? (refAcc.currency||'BRL') : 'BRL';
   let totalContas=0, totalCamps=0, totalAdgroups=0, totalGasto=0;
-  data.forEach(acc=>{
+  sorted.forEach(acc=>{
     totalContas++;
     totalCamps    += acc.campaigns.length;
     totalAdgroups += acc.campaigns.reduce((s,c)=>s+c.adgroups.length,0);
@@ -1692,46 +1717,74 @@ function renderVisao(data) {
   document.getElementById('vk-contas').innerText    = totalContas;
   document.getElementById('vk-campanhas').innerText = totalCamps;
   document.getElementById('vk-conjuntos').innerText = totalAdgroups;
-  document.getElementById('vk-gasto').innerText     = 'R$ ' + totalGasto.toFixed(2);
+  document.getElementById('vk-gasto').innerText     = fmtMoeda(totalGasto, moedaGlobal);
   document.getElementById('visao-kpis').style.display = 'grid';
 
   // Body
   const body = document.getElementById('visao-body');
-  body.innerHTML = data.map(acc => {
-    const campRows = acc.campaigns.length ? acc.campaigns.map(camp => {
-      const statusColor = camp.status==='ENABLE'?'var(--green)':camp.status==='DISABLE'?'var(--text3)':'var(--orange)';
-      const statusTxt   = camp.status==='ENABLE'?'Ativa':'Pausada';
-      const agRows = camp.adgroups.map(ag=>
-        `<tr style="background:rgba(0,0,0,0.2)">
-          <td style="padding:8px 16px 8px 36px;font-size:11px;font-family:var(--mono);color:var(--text2)">↳ ${ag.name}</td>
-          <td style="padding:8px 16px;font-size:10px"><span style="color:${ag.status==='ENABLE'?'var(--green)':'var(--text3)'};font-family:var(--mono)">${ag.status==='ENABLE'?'Ativo':'Pausado'}</span></td>
+  body.innerHTML = sorted.map(acc => {
+    const currency = acc.currency || 'BRL';
+
+    // Ordena campanhas: ativas primeiro, depois por gasto desc
+    const camps = [...acc.campaigns].sort((a,b) => {
+      if (a.status==='ENABLE' && b.status!=='ENABLE') return -1;
+      if (b.status==='ENABLE' && a.status!=='ENABLE') return 1;
+      return b.spend - a.spend;
+    });
+
+    const campRows = camps.length ? camps.map(camp => {
+      const isActive = camp.status === 'ENABLE';
+      const statusColor = isActive ? 'var(--green)' : camp.status==='DISABLE' ? 'var(--text3)' : 'var(--orange)';
+      const statusDot   = isActive
+        ? `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);margin-right:5px;vertical-align:middle"></span>`
+        : `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--text3);margin-right:5px;vertical-align:middle"></span>`;
+      const statusTxt = isActive ? 'Ativa' : 'Pausada';
+
+      const agRows = camp.adgroups.map(ag => {
+        const agActive = ag.status === 'ENABLE';
+        return `<tr style="background:rgba(0,0,0,0.2)">
+          <td style="padding:7px 16px 7px 36px;font-size:11px;font-family:var(--mono);color:var(--text2)">↳ ${ag.name}</td>
+          <td style="padding:7px 16px;font-size:10px">
+            <span style="display:inline-flex;align-items:center;gap:4px;color:${agActive?'var(--green)':'var(--text3)'};font-family:var(--mono)">
+              <span style="width:5px;height:5px;border-radius:50%;background:${agActive?'var(--green)':'var(--text3)'}"></span>
+              ${agActive?'Ativo':'Pausado'}
+            </span>
+          </td>
           <td colspan="3"></td>
-        </tr>`
-      ).join('');
-      return `<tr>
+        </tr>`;
+      }).join('');
+
+      const toggleBtn = isActive
+        ? `<button class="btn btn-danger btn-xs" style="min-width:68px" onclick="toggleCampanha('${bcId}','${acc.advertiser_id}','${camp.id}','DISABLE',this)">⏸ Pausar</button>`
+        : `<button class="btn btn-success btn-xs" style="min-width:68px;background:rgba(18,232,154,0.12);border-color:rgba(18,232,154,0.3);color:var(--green)" onclick="toggleCampanha('${bcId}','${acc.advertiser_id}','${camp.id}','ENABLE',this)">▶ Ativar</button>`;
+
+      return `<tr style="${isActive?'background:rgba(18,232,154,0.03)':''}">
         <td style="font-size:12px;font-weight:600;padding-left:24px">${camp.name}</td>
-        <td><span style="color:${statusColor};font-family:var(--mono);font-size:10px">${statusTxt}</span></td>
-        <td style="font-family:var(--mono);font-size:11px">R$ ${camp.spend.toFixed(2)}</td>
+        <td><span style="color:${statusColor};font-family:var(--mono);font-size:10px;display:inline-flex;align-items:center">${statusDot}${statusTxt}</span></td>
+        <td style="font-family:var(--mono);font-size:11px;font-weight:${camp.spend>0?'600':'400'};color:${camp.spend>0?'var(--text)':'var(--text3)'}">${fmtMoeda(camp.spend, currency)}</td>
         <td style="font-family:var(--mono);font-size:11px;color:var(--text2)">${camp.impressions.toLocaleString()}</td>
-        <td>
-          <div style="display:flex;gap:4px">
-            ${camp.status==='ENABLE'?`<button class="btn btn-danger btn-xs" onclick="pausarCampanha('${bcId}','${acc.advertiser_id}','${camp.id}',this)">Pausar</button>`:''}
-          </div>
-        </td>
+        <td><div style="display:flex;gap:4px">${toggleBtn}</div></td>
       </tr>${agRows}`;
     }).join('') : `<tr><td colspan="5" style="text-align:center;padding:16px;color:var(--text3);font-family:var(--mono);font-size:11px">Sem campanhas no periodo</td></tr>`;
 
+    const spendColor = acc.total_spend > 0 ? 'var(--tt-red)' : 'var(--text3)';
+    const activeCamps = acc.campaigns.filter(c=>c.status==='ENABLE').length;
     return `<div class="cfg-card" style="margin-bottom:14px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
         <div>
           <div style="font-size:15px;font-weight:700">${acc.advertiser_name}</div>
-          <div style="font-size:10px;color:var(--text2);font-family:var(--mono)">${acc.advertiser_id} · ${acc.campaigns.length} campanhas</div>
+          <div style="font-size:10px;color:var(--text2);font-family:var(--mono);margin-top:3px">
+            ${acc.advertiser_id}
+            · <span style="color:var(--text2)">${acc.campaigns.length} campanha(s)</span>
+            ${activeCamps>0?`· <span style="color:var(--green)">${activeCamps} ativa(s)</span>`:''}
+            · <span style="color:var(--text3);font-size:9px;text-transform:uppercase;letter-spacing:1px">${currency}</span>
+          </div>
         </div>
-        <div style="font-size:22px;font-weight:200;font-family:'Plus Jakarta Sans',sans-serif;color:var(--tt-red);letter-spacing:-2px">R$ ${acc.total_spend.toFixed(2)}</div>
+        <div style="font-size:22px;font-weight:200;font-family:'Plus Jakarta Sans',sans-serif;color:${spendColor};letter-spacing:-2px">${fmtMoeda(acc.total_spend, currency)}</div>
       </div>
       <div class="table-wrap" style="border-radius:8px">
         <table>
-          <thead><tr><th>Campanha</th><th>Status</th><th>Gasto</th><th>Impressoes</th><th>Acoes</th></tr></thead>
+          <thead><tr><th>Campanha</th><th>Status</th><th>Gasto</th><th>Impressões</th><th>Ação</th></tr></thead>
           <tbody>${campRows}</tbody>
         </table>
       </div>
@@ -1739,15 +1792,29 @@ function renderVisao(data) {
   }).join('');
 }
 
-function pausarCampanha(bcId, advId, campId, btn) {
-  btn.disabled = true; btn.innerText = '...';
-  fetch(`/api/bcs-api/${bcId}/disable-campaign`, {
+function toggleCampanha(bcId, advId, campId, novoStatus, btn) {
+  btn.disabled = true;
+  const originalText = btn.innerText;
+  btn.innerText = '...';
+  const endpoint = novoStatus === 'DISABLE'
+    ? `/api/bcs-api/${bcId}/disable-campaign`
+    : `/api/bcs-api/${bcId}/enable-campaign`;
+  fetch(endpoint, {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({advertiser_id: advId, campaign_id: campId})
   }).then(r=>r.json()).then(d=>{
-    if (d.ok) { showToast('Campanha pausada!', 'success'); btn.style.display='none'; carregarVisao(); }
-    else { showToast(d.error || 'Erro ao pausar', 'error'); btn.disabled=false; btn.innerText='Pausar'; }
-  });
+    if (d.ok) {
+      showToast(novoStatus==='DISABLE'?'Campanha pausada!':'Campanha ativada!', novoStatus==='DISABLE'?'warn':'success');
+      carregarVisao();
+    } else {
+      showToast(d.error || 'Erro ao alterar status', 'error');
+      btn.disabled=false; btn.innerText=originalText;
+    }
+  }).catch(()=>{ btn.disabled=false; btn.innerText=originalText; });
+}
+
+function pausarCampanha(bcId, advId, campId, btn) {
+  toggleCampanha(bcId, advId, campId, 'DISABLE', btn);
 }
 
 function desativarTodas() {
