@@ -430,7 +430,7 @@ input[type=date].form-input { color-scheme:dark; }
     </div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>#</th><th>Nome do BC</th><th>Profile ID</th><th>Status</th><th>Contas</th><th>Campanhas ✓/✕</th><th>Ações</th></tr></thead>
+        <thead><tr><th>#</th><th>Nome do BC</th><th style="color:var(--tt-cyan)">ADS Power</th><th style="color:var(--tt-red)">TikTok API</th><th>Status</th><th>Contas</th><th>Campanhas</th><th>Ações</th></tr></thead>
         <tbody id="bc-table-body"><tr><td colspan="7"><div class="empty"><div class="empty-icon">🏢</div><div class="empty-text">Nenhum BC cadastrado ainda</div></div></td></tr></tbody>
       </table>
     </div>
@@ -813,28 +813,68 @@ input[type=date].form-input { color-scheme:dark; }
 
 <!-- ── MODALS ── -->
 <div class="modal-overlay" id="modal-add-bc">
-  <div class="modal" style="width:540px">
-    <div class="modal-title">Adicionar Business Center</div>
+  <div class="modal" style="width:560px;max-width:95vw">
+    <div class="modal-title">Business Center</div>
     <div class="form-group"><label class="form-label">Nome do BC</label><input type="text" class="form-input" id="bc-nome" placeholder="Ex: BC Brasil 1"></div>
-    <div style="background:rgba(37,244,238,0.04);border:1px solid rgba(37,244,238,0.15);border-radius:10px;padding:14px;margin-bottom:14px">
-      <div style="font-size:10px;font-family:var(--mono);color:var(--tt-cyan);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px">ADS Power — Automação Browser</div>
-      <div class="form-group" style="margin-bottom:0"><label class="form-label">Profile ID</label><input type="text" class="form-input" id="bc-profile-id" placeholder="Ex: k1952o9j"></div>
+
+    <!-- CONTAS: ADS Power -->
+    <div style="border:1px solid rgba(37,244,238,0.2);border-radius:12px;padding:16px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--tt-cyan)" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        <span style="font-size:10px;font-family:var(--mono);color:var(--tt-cyan);letter-spacing:1.5px;text-transform:uppercase">Criação de Contas · ADS Power</span>
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">Profile ID</label>
+        <input type="text" class="form-input" id="bc-profile-id" placeholder="Ex: k1952o9j">
+        <div class="tip cyan" style="margin-top:8px">ID do perfil no ADS Power. Usado para criar contas em massa via browser automatizado.</div>
+      </div>
     </div>
-    <div style="background:rgba(254,44,85,0.04);border:1px solid rgba(254,44,85,0.15);border-radius:10px;padding:14px;margin-bottom:14px">
-      <div style="font-size:10px;font-family:var(--mono);color:var(--tt-red);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px">TikTok API — Dados and Gestao</div>
-      <div class="form-group" style="margin-bottom:10px"><label class="form-label">BC ID (TikTok Business Center)</label><input type="text" class="form-input" id="bc-tiktok-id" placeholder="Ex: 7607905792628621313" oninput="toggleOAuthSection()"></div>
+
+    <!-- CAMPANHAS: TikTok OAuth -->
+    <div style="border:1px solid rgba(254,44,85,0.2);border-radius:12px;padding:16px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--tt-red)" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+        <span style="font-size:10px;font-family:var(--mono);color:var(--tt-red);letter-spacing:1.5px;text-transform:uppercase">Criação de Campanhas · TikTok API</span>
+      </div>
+      <div class="form-group" style="margin-bottom:12px">
+        <label class="form-label">BC ID (TikTok Business Center)</label>
+        <input type="text" class="form-input" id="bc-tiktok-id" placeholder="Ex: 7607905792628621313" oninput="toggleOAuthSection()">
+        <div class="tip" style="margin-top:8px">ID numérico do Business Center no TikTok. Usado para puxar contas e criar campanhas via API oficial.</div>
+      </div>
       <div id="oauth-section" style="display:none">
-        <div style="display:flex;gap:8px;align-items:center">
-          <button class="btn btn-primary btn-sm" onclick="abrirOAuth()" style="flex:1">
+        <!-- Passo 1 -->
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <div style="width:18px;height:18px;border-radius:50%;background:rgba(254,44,85,0.15);border:1px solid rgba(254,44,85,0.3);display:flex;align-items:center;justify-content:center;font-size:9px;font-family:var(--mono);color:var(--tt-red);flex-shrink:0">1</div>
+          <button class="btn btn-primary" onclick="abrirOAuth()" style="flex:1;justify-content:center">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
             Abrir OAuth TikTok
           </button>
-          <span id="oauth-status" style="font-size:10px;font-family:var(--mono);color:var(--text3)">nao conectado</span>
         </div>
-        <div class="tip cyan" style="margin-top:8px">Clique para abrir o TikTok e autorizar. Apos autorizar volte aqui e clique em Verificar.</div>
-        <button class="btn btn-ghost btn-sm" style="margin-top:8px;width:100%" onclick="verificarOAuth()">Verificar Conexao</button>
+        <!-- Passo 2: colar auth_code -->
+        <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px">
+          <div style="width:18px;height:18px;border-radius:50%;background:rgba(254,44,85,0.15);border:1px solid rgba(254,44,85,0.3);display:flex;align-items:center;justify-content:center;font-size:9px;font-family:var(--mono);color:var(--tt-red);flex-shrink:0;margin-top:4px">2</div>
+          <div style="flex:1">
+            <label class="form-label" style="margin-bottom:6px">Cole o auth_code da URL de retorno</label>
+            <input type="text" class="form-input" id="oauth-auth-code" placeholder="6a67e41ac75827..." style="font-family:var(--mono);font-size:11px">
+            <div class="tip" style="margin-top:6px">Após autorizar, copie o valor de <code style="color:var(--tt-cyan);background:var(--s2);padding:1px 5px;border-radius:3px">auth_code=</code> da URL e cole aqui.</div>
+          </div>
+        </div>
+        <!-- Passo 3: confirmar -->
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <div style="width:18px;height:18px;border-radius:50%;background:rgba(254,44,85,0.15);border:1px solid rgba(254,44,85,0.3);display:flex;align-items:center;justify-content:center;font-size:9px;font-family:var(--mono);color:var(--tt-red);flex-shrink:0">3</div>
+          <button class="btn btn-success" onclick="confirmarAuthCode()" style="flex:1;justify-content:center">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            Confirmar e Conectar
+          </button>
+        </div>
+        <!-- Status -->
+        <div style="display:flex;align-items:center;gap:6px;padding:8px 10px;background:var(--s2);border-radius:8px">
+          <div id="oauth-dot" style="width:7px;height:7px;border-radius:50%;background:var(--text3);transition:background 0.3s"></div>
+          <span id="oauth-status" style="font-size:10px;font-family:var(--mono);color:var(--text3)">Não conectado</span>
+        </div>
       </div>
     </div>
+
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
       <button class="btn btn-primary" onclick="salvarBC()">Salvar BC</button>
@@ -959,7 +999,29 @@ function renderBCTable() {
     const run = runningKeys.some(k=>k.includes(bc.id));
     const sl  = run?'running':(bc.status||'idle');
     const st2 = run?'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="spinning"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> Rodando':(sl==='done'?'✓ Concluído':'Ocioso');
-    return `<tr><td><span style="font-family:var(--mono);color:var(--text3);font-size:11px">${i+1}</span></td><td style="font-weight:700">${bc.nome}</td><td><span style="font-family:var(--mono);font-size:10px;color:var(--tt-cyan)">${bc.profileId}</span></td><td><span class="bc-status ${sl}">${st2}</span></td><td style="font-family:var(--mono);font-size:12px">${tot}</td><td style="font-family:var(--mono);font-size:12px"><span style="color:var(--green)">✓${suc}</span><span style="color:var(--text3)"> / </span><span style="color:var(--tt-red)">✕${fal}</span></td><td><div style="display:flex;gap:6px"><button class="btn btn-ghost btn-sm" onclick="editBC(${i})">✏</button><button class="btn btn-danger btn-sm" onclick="deleteBC(${i})">✕</button></div></td></tr>`;
+    const apiBC  = bcApiList.find(b => b.nome === bc.nome || b.profileId === bc.profileId);
+    const tokenOk = apiBC && apiBC.token_ok;
+    const tiktokId = (bc.tiktokBcId || (apiBC && apiBC.tiktokBcId) || '').toString();
+    const tiktokShort = tiktokId ? tiktokId.slice(-6) : '—';
+    const apiStatus = tiktokId
+      ? (tokenOk
+          ? '<span style="color:var(--green);font-family:var(--mono);font-size:10px">✓ Conectado</span>'
+          : `<span style="color:var(--text3);font-family:var(--mono);font-size:10px">···${tiktokShort}</span>`)
+      : '<span style="color:var(--text3);font-family:var(--mono);font-size:10px">—</span>';
+    return `<tr>
+      <td><span style="font-family:var(--mono);color:var(--text3);font-size:11px">${i+1}</span></td>
+      <td style="font-weight:700">${bc.nome}</td>
+      <td><span style="font-family:var(--mono);font-size:10px;color:var(--tt-cyan)">${bc.profileId||'—'}</span></td>
+      <td>${apiStatus}</td>
+      <td><span class="bc-status ${sl}">${st2}</span></td>
+      <td style="font-family:var(--mono);font-size:12px">${tot}</td>
+      <td style="font-family:var(--mono);font-size:12px"><span style="color:var(--green)">✓${suc}</span><span style="color:var(--text3)"> / </span><span style="color:var(--tt-red)">✕${fal}</span></td>
+      <td><div style="display:flex;gap:6px">
+        ${tokenOk ? '' : (tiktokId ? `<button class="btn btn-primary btn-xs" onclick="abrirOAuthBC('${bc.nome}','${tiktokId}')" title="Conectar OAuth">OAuth</button>` : '')}
+        <button class="btn btn-ghost btn-sm" onclick="editBC(${i})">✏</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteBC(${i})">✕</button>
+      </div></td>
+    </tr>`;
   }).join('');
   const sel = document.getElementById('filter-bc');
   if (sel) sel.innerHTML='<option value="all">Todos os BCs</option>'+bcs.map(bc=>`<option value="${bc.id}">${bc.nome}</option>`).join('');
@@ -1406,28 +1468,44 @@ function toggleOAuthSection() {
 function abrirOAuth() {
   const bcId = document.getElementById('bc-tiktok-id').value.trim();
   if (!bcId) { showToast('Informe o BC ID primeiro!', 'warn'); return; }
+  _abrirOAuthComId(bcId);
+}
+
+function abrirOAuthBC(nome, bcId) {
+  // Called directly from BC table row — no modal needed
+  if (!confirm(`Abrir OAuth para o BC "${nome}" (${bcId})?`)) return;
+  _abrirOAuthComId(bcId);
+}
+
+function _abrirOAuthComId(bcId) {
   fetch('/api/oauth/url?bc_id=' + bcId).then(r=>r.json()).then(d=>{
     if (d.ok) {
       oauthWindowRef = window.open(d.url, '_blank', 'width=700,height=600');
-      document.getElementById('oauth-status').innerText = 'aguardando...';
-      document.getElementById('oauth-status').style.color = 'var(--orange)';
+      const dot = document.getElementById('oauth-dot');
+      const status = document.getElementById('oauth-status');
+      if (dot) { dot.style.background = 'var(--orange)'; }
+      if (status) { status.innerText = 'Aguardando autorização...'; status.style.color = 'var(--orange)'; }
+      showToast('Janela OAuth aberta — autorize e clique em Verificar', 'info');
     }
   }).catch(()=>showToast('Erro ao gerar URL OAuth', 'error'));
 }
 
 function verificarOAuth() {
-  const bcId = document.getElementById('bc-tiktok-id').value.trim();
+  const bcId = document.getElementById('bc-tiktok-id') ? document.getElementById('bc-tiktok-id').value.trim() : '';
   if (!bcId) return;
   fetch('/api/bcs-api').then(r=>r.json()).then(list=>{
     const bc = list.find(b => b.tiktokBcId === bcId);
+    const dot    = document.getElementById('oauth-dot');
+    const status = document.getElementById('oauth-status');
     if (bc && bc.token_ok) {
-      document.getElementById('oauth-status').innerText = '✓ conectado';
-      document.getElementById('oauth-status').style.color = 'var(--green)';
-      showToast('OAuth conectado!', 'success');
+      if (dot)    { dot.style.background = 'var(--green)'; }
+      if (status) { status.innerText = '✓ Conectado — contas serão carregadas automaticamente'; status.style.color = 'var(--green)'; }
+      showToast('✓ OAuth conectado! Contas prontas para uso.', 'success');
+      loadBcsApi();
     } else {
-      document.getElementById('oauth-status').innerText = 'nao conectado';
-      document.getElementById('oauth-status').style.color = 'var(--text3)';
-      showToast('Ainda nao conectado. Autorize no TikTok e tente novamente.', 'warn');
+      if (dot)    { dot.style.background = 'var(--tt-red)'; }
+      if (status) { status.innerText = 'Não conectado — autorize no TikTok e tente novamente'; status.style.color = 'var(--tt-red)'; }
+      showToast('Ainda não conectado. Autorize no TikTok primeiro.', 'warn');
     }
   });
 }
@@ -1615,6 +1693,47 @@ function irDesativarTodas() {
 
 // ── INIT adicional ────────────────────────────────────────────────────────────
 loadBcsApi();
+
+
+function confirmarAuthCode() {
+  const bcId    = document.getElementById('bc-tiktok-id') ? document.getElementById('bc-tiktok-id').value.trim() : '';
+  const rawInput = document.getElementById('oauth-auth-code').value.trim();
+  if (!rawInput) { showToast('Cole o auth_code primeiro!', 'warn'); return; }
+
+  // Aceita tanto a URL completa quanto só o código
+  let authCode = rawInput;
+  const match = rawInput.match(/[?&]auth_code=([a-f0-9]+)/);
+  if (match) authCode = match[1];
+
+  if (!authCode || authCode.length < 10) { showToast('auth_code inválido', 'error'); return; }
+
+  const dot    = document.getElementById('oauth-dot');
+  const status = document.getElementById('oauth-status');
+  if (dot)    dot.style.background = 'var(--orange)';
+  if (status) { status.innerText = 'Conectando...'; status.style.color = 'var(--orange)'; }
+
+  fetch('/api/oauth/exchange', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({auth_code: authCode, bc_id: bcId})
+  }).then(r=>r.json()).then(d=>{
+    if (d.ok) {
+      if (dot)    { dot.style.background = 'var(--green)'; }
+      if (status) { status.innerText = `✓ Conectado — ${d.advertiser_count || 0} conta(s) encontrada(s)`; status.style.color = 'var(--green)'; }
+      showToast(`✓ OAuth conectado! ${d.advertiser_count || 0} conta(s) carregada(s).`, 'success');
+      document.getElementById('oauth-auth-code').value = '';
+      loadBcsApi();
+    } else {
+      if (dot)    { dot.style.background = 'var(--tt-red)'; }
+      if (status) { status.innerText = `Erro: ${d.error}`; status.style.color = 'var(--tt-red)'; }
+      showToast(d.error || 'Erro ao conectar', 'error');
+    }
+  }).catch(e => {
+    if (dot)    { dot.style.background = 'var(--tt-red)'; }
+    if (status) { status.innerText = 'Erro de conexão'; status.style.color = 'var(--tt-red)'; }
+    showToast('Erro de conexão com o servidor', 'error');
+  });
+}
 
 </script>
 </body>
