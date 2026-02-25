@@ -1,822 +1,736 @@
-"""
-TikAuto Cloud — boldies.site
-Flask backend completo para gestão de campanhas TikTok via API oficial
-v4-saas-pro
-"""
-
 from flask import Flask, render_template, jsonify, request
-import requests
+import threading
+import subprocess
+import sys
+import requests as req
+import time
 import json
 import os
-import re
-import time
-import threading
-import uuid
 from datetime import datetime
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'tikauto-secret-2026')
 
-TIKTOK_APP_ID     = os.environ.get('TIKTOK_APP_ID', '7610282489889685520')
-TIKTOK_APP_SECRET = os.environ.get('TIKTOK_APP_SECRET', '')
-TIKTOK_REDIRECT   = os.environ.get('TIKTOK_REDIRECT', 'https://boldies.site/oauth/callback')
-TIKTOK_API_BASE   = 'https://business-api.tiktok.com/open_api/v1.3'
+# ─── Estado global ────────────────────────────────────────────────────────────
+processos    = {}        # {key: subprocess.Popen}
+logs_pend    = []
+rels_pend    = []
+stop_flags   = {}
+log_offsets  = {}        # {bc_id: int}
 
-DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
-LOGS_DIR = os.path.join(os.path.dirname(__file__), 'logs')
-os.makedirs(DATA_DIR, exist_ok=True)
-os.makedirs(LOGS_DIR, exist_ok=True)
+LOG_DIR    = os.path.join(os.path.dirname(__file__), 'logs')
+UPLOAD_DIR = os.path.join(os.path.dirname(__file__), 'uploads')
+DATA_DIR   = os.path.join(os.path.dirname(__file__), 'data')
+os.makedirs(LOG_DIR,    exist_ok=True)
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(DATA_DIR,   exist_ok=True)
 
-def load_data(filename, default):
-    path = os.path.join(DATA_DIR, filename)
-    if os.path.exists(path):
+# ─── Helpers de dados ─────────────────────────────────────────────────────────
+def load_json(fname, default):
+    p = os.path.join(DATA_DIR, fname)
+    if os.path.exists(p):
         try:
-            with open(path, 'r', encoding='utf-8') as f:
+            with open(p, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except: pass
     return default
 
-def save_data(filename, data):
-    path = os.path.join(DATA_DIR, filename)
-    with open(path, 'w', encoding='utf-8') as f:
+def save_json(fname, data):
+    p = os.path.join(DATA_DIR, fname)
+    with open(p, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-def get_bcs():      return load_data('bcs.json', [])
-def save_bcs(d):    save_data('bcs.json', d)
-def get_tokens():   return load_data('tokens.json', {})
-def save_tokens(d): save_data('tokens.json', d)
-def get_jobs():     return load_data('jobs.json', [])
-def save_jobs(d):   save_data('jobs.json', d)
-def get_sparks():   return load_data('sparks.json', [])
-def save_sparks(d): save_data('sparks.json', d)
+def get_spark_posts():   return load_json('spark_posts.json', [])
+def save_spark_posts(d): save_json('spark_posts.json', d)
+def get_identities():    return load_json('identities.json', [])
+def save_identities(d):  save_json('identities.json', d)
 
-running_jobs = {}
+# ─── Worker monitoring ────────────────────────────────────────────────────────
+def ler_logs_worker(bc_id):
+    arq = os.path.join(LOG_DIR, f'live_{bc_id}.jsonl')
+    if not os.path.exists(arq): return []
+    offset = log_offsets.get(bc_id, 0)
+    novos  = []
+    with open(arq, 'r', encoding='utf-8') as f:
+        f.seek(offset)
+        for linha in f:
+            linha = linha.strip()
+            if linha:
+                try: novos.append(json.loads(linha))
+                except: pass
+        log_offsets[bc_id] = f.tell()
+    return novos
 
-def add_log(job_id, msg, level='info'):
-    ts = datetime.now().strftime('%H:%M:%S')
-    entry = {'ts': ts, 'msg': msg, 'level': level}
-    if job_id in running_jobs:
-        running_jobs[job_id]['logs'].append(entry)
-        running_jobs[job_id]['logs'] = running_jobs[job_id]['logs'][-500:]
-    log_file = os.path.join(LOGS_DIR, f'{job_id}.jsonl')
-    with open(log_file, 'a', encoding='utf-8') as f:
-        f.write(json.dumps(entry, ensure_ascii=False) + '\n')
+def monitorar_worker(bc_id, key):
+    proc = processos.get(key)
+    if not proc: return
+    while proc.poll() is None:
+        for e in ler_logs_worker(bc_id):
+            logs_pend.append({'msg': e['msg'], 'type': e['type']})
+        time.sleep(1)
+    for e in ler_logs_worker(bc_id):
+        logs_pend.append({'msg': e['msg'], 'type': e['type']})
+    stop_flags.pop(key, None)
+    processos.pop(key, None)
 
-def extract_item_id_from_url(text):
-    if not text:
-        return None
-    text = text.strip()
-    if re.match(r'^\d{10,25}$', text):
-        return text
-    m = re.search(r'/video/(\d{10,25})', text)
-    if m:
-        return m.group(1)
-    if 'vm.tiktok.com' in text or 'vt.tiktok.com' in text:
-        try:
-            r = requests.head(text, allow_redirects=True, timeout=10)
-            m = re.search(r'/video/(\d{10,25})', r.url)
-            if m:
-                return m.group(1)
-        except:
-            pass
-    return None
+# ─── Log helpers ──────────────────────────────────────────────────────────────
+def adicionar_log(msg, tipo='info'):
+    logs_pend.append({'msg': msg, 'type': tipo})
 
-def tiktok_get(endpoint, token, advertiser_id, params=None):
-    url = f"{TIKTOK_API_BASE}/{endpoint}/"
-    headers = {'Access-Token': token}
-    p = {'advertiser_id': advertiser_id}
-    if params: p.update(params)
-    r = requests.get(url, headers=headers, params=p, timeout=15)
-    try: return r.json()
-    except: return {'code': -1, 'message': f'Resposta invalida: {r.text[:200]}'}
+def salvar_log_arquivo(bc_nome, tipo, conta, status, detalhe=''):
+    horario = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+    arq = os.path.join(LOG_DIR, f"{bc_nome.replace(' ','_')}_{tipo}.txt")
+    with open(arq, 'a', encoding='utf-8') as f:
+        f.write(f"[{status.upper()}] {horario} | {conta} | {detalhe}\n")
 
-def tiktok_post(endpoint, token, payload):
-    url = f"{TIKTOK_API_BASE}/{endpoint}/"
-    headers = {'Access-Token': token, 'Content-Type': 'application/json'}
-    r = requests.post(url, headers=headers, json=payload, timeout=30)
-    try: return r.json()
-    except: return {'code': -1, 'message': f'Resposta invalida: {r.text[:200]}'}
+def adicionar_relatorio(bc_id, bc_nome, conta, tipo, status, detalhe=''):
+    horario = datetime.now().strftime('%d/%m/%Y %H:%M')
+    rels_pend.append({'bc_id':bc_id,'bc_nome':bc_nome,'conta':conta,
+                      'tipo':tipo,'status':status,'detalhe':detalhe,'horario':horario})
+    salvar_log_arquivo(bc_nome, tipo, conta, status, detalhe)
 
-def get_token_for_bc(bc_id):
-    return get_tokens().get(str(bc_id), {}).get('access_token')
+def conta_ja_processada(bc_nome, tipo, nome_conta):
+    arq = os.path.join(LOG_DIR, f"{bc_nome.replace(' ','_')}_{tipo}.txt")
+    if not os.path.exists(arq): return False
+    with open(arq, 'r', encoding='utf-8') as f: c = f.read()
+    return nome_conta in c and '[SUCESSO]' in c
 
-def get_advertiser_ids(token):
-    url = f"{TIKTOK_API_BASE}/oauth2/advertiser/get/"
+def importar_contas_arquivo(bc_nome, tipo, caminho):
+    horario = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+    destino = os.path.join(LOG_DIR, f"{bc_nome.replace(' ','_')}_{tipo}.txt")
+    importadas = 0
     try:
-        r = requests.get(url, headers={'Access-Token': token},
-                         params={'app_id': TIKTOK_APP_ID, 'secret': TIKTOK_APP_SECRET}, timeout=15)
-        d = r.json()
-        if d.get('code') == 0:
-            return [str(a['advertiser_id']) for a in d['data'].get('list', [])]
+        with open(caminho, 'r', encoding='utf-8') as f: linhas = f.readlines()
+        with open(destino, 'a', encoding='utf-8') as f:
+            for linha in linhas:
+                linha = linha.strip()
+                if not linha: continue
+                if '[SUCESSO]' in linha or '[FALHA]' in linha:
+                    f.write(linha + '\n')
+                else:
+                    nome = linha.split(' - ')[0].strip()
+                    if nome: f.write(f"[SUCESSO] {horario} | {nome} | importado\n")
+                importadas += 1
     except Exception as e:
-        print(f"Erro get_advertiser_ids: {e}")
-    return []
+        return 0, str(e)
+    return importadas, None
 
-def get_advertiser_info(token, advertiser_id):
-    r = tiktok_get('advertiser/info', token, advertiser_id,
-                   {'fields': '["name","status","currency","timezone"]'})
-    if r.get('code') == 0:
-        info_list = r.get('data', {}).get('list', [])
-        if info_list:
-            return info_list[0]
-    return {}
-
-def get_active_campaigns(token, advertiser_id):
-    """Para exibição na aba Campanhas Ativas — filtra só ENABLE. Timeout agressivo."""
-    try:
-        url = f"{TIKTOK_API_BASE}/campaign/get/"
-        filtering = json.dumps({"primary_status": "STATUS_ACTIVE"})
-        r = requests.get(url, headers={'Access-Token': token}, params={
-            'advertiser_id': advertiser_id,
-            'page_size': 100,
-            'filtering': filtering,
-        }, timeout=(5, 8))  # (connect, read) timeout
-        data = r.json()
-        if data.get('code') == 0:
-            camps = data.get('data', {}).get('list', [])
-            return [c for c in camps if c.get('operation_status', 'ENABLE') == 'ENABLE']
-        return []
-    except requests.exceptions.Timeout:
-        print(f"get_active_campaigns TIMEOUT adv {advertiser_id}")
-        return []
-    except Exception as e:
-        print(f"get_active_campaigns exception adv {advertiser_id}: {e}")
-        return []
-
-def get_all_campaigns_to_disable(token, advertiser_id):
-    """
-    Para o botão Desativar Todas — busca SEM filtro de status.
-    Garante que campanhas com saldo zerado (TikTok muda status automaticamente)
-    também sejam desativadas. Exclui apenas deletadas.
-    """
-    try:
-        url = f"{TIKTOK_API_BASE}/campaign/get/"
-        r = requests.get(url, headers={'Access-Token': token}, params={
-            'advertiser_id': advertiser_id,
-            'page_size': 100,
-        }, timeout=(5, 8))  # (connect, read) timeout
-        data = r.json()
-        if data.get('code') == 0:
-            camps = data.get('data', {}).get('list', [])
-            return [c for c in camps if c.get('operation_status') != 'DELETE']
-        return []
-    except requests.exceptions.Timeout:
-        print(f"get_all_campaigns_to_disable TIMEOUT adv {advertiser_id}")
-        return []
-    except Exception as e:
-        print(f"get_all_campaigns_to_disable exception adv {advertiser_id}: {e}")
-        return []
-
-OBJETIVO_CONFIG = {
-    'VIDEO_VIEWS':     {'objective_type':'VIDEO_VIEWS',     'optimization_goal':'ENGAGED_VIEW', 'billing_event':'CPV'},
-    'REACH':           {'objective_type':'REACH',           'optimization_goal':'REACH',        'billing_event':'CPM'},
-    'TRAFFIC':         {'objective_type':'TRAFFIC',         'optimization_goal':'CLICK',        'billing_event':'CPC'},
-    'ENGAGEMENT':      {'objective_type':'ENGAGEMENT',      'optimization_goal':'SHOW',         'billing_event':'CPM'},
-    'LEAD_GENERATION': {'objective_type':'LEAD_GENERATION', 'optimization_goal':'LEAD_GENERATION','billing_event':'OCPM'},
-    'APP_PROMOTION':   {'objective_type':'APP_PROMOTION',   'optimization_goal':'INSTALL',      'billing_event':'OCPM'},
-    'CONVERSIONS':     {'objective_type':'WEB_CONVERSIONS', 'optimization_goal':'CONVERT',      'billing_event':'OCPM'},
-    'PRODUCT_SALES':   {'objective_type':'PRODUCT_SALES',   'optimization_goal':'CONVERT',      'billing_event':'OCPM'},
-}
-
-LOCATION_MAP = {
-    'BR':3469034,'PT':2264397,'US':6252001,'MX':3996063,'AR':3865483,
-    'CO':3686110,'FR':3017382,'DE':2921044,'ES':2510769,'IT':3175395,
-    'GB':2635167,'AE':290557,'CL':3895114,'PE':3932488,'EC':3658394,
-}
-
-def get_location_ids(paises):
-    ids = [str(LOCATION_MAP[p]) for p in paises if p in LOCATION_MAP]
-    return ids if ids else ['3469034']
-
+# ─── Routes base ──────────────────────────────────────────────────────────────
 @app.route('/')
 def index():
     return render_template('index.html')
 
 @app.route('/api/version')
 def version():
-    return jsonify({'version': 'v4-saas-pro'})
+    return jsonify({'version': 'v5-full'})
 
-@app.route('/oauth/url')
-def oauth_url():
-    bc_id = request.args.get('bc_id', 'unknown')
-    url = (f"https://business-api.tiktok.com/portal/auth"
-           f"?app_id={TIKTOK_APP_ID}&state=bcid_{bc_id}&redirect_uri={TIKTOK_REDIRECT}")
-    return jsonify({'ok': True, 'url': url})
-
-@app.route('/oauth/callback')
-def oauth_callback():
-    auth_code = request.args.get('auth_code')
-    state     = request.args.get('state', '')
-    error     = request.args.get('error_code')
-    if error:
-        return render_template('index.html', oauth_error=error)
-    if not auth_code:
-        return render_template('index.html', oauth_error='Sem auth_code')
-    result = _exchange_token(auth_code)
-    if not result.get('ok'):
-        return render_template('index.html', oauth_error=result.get('error'))
-    bc_id = None
-    if state.startswith('bcid_'):
-        try: bc_id = int(state.replace('bcid_', ''))
-        except: pass
-    token_data = result['data']
-    tokens = get_tokens()
-    key = str(bc_id) if bc_id else token_data.get('advertiser_id', str(time.time()))
-    tokens[key] = {'access_token': token_data['access_token'],
-                   'advertiser_id': token_data.get('advertiser_id', ''),
-                   'saved_at': datetime.now().isoformat(), 'bc_id': bc_id}
-    save_tokens(tokens)
-    advs = get_advertiser_ids(token_data['access_token'])
-    if bc_id:
-        bcs = get_bcs()
-        for bc in bcs:
-            if bc['id'] == bc_id:
-                bc['advertiser_ids'] = advs
-                bc['token_ok'] = True
-                break
-        save_bcs(bcs)
-    return render_template('index.html', oauth_success=True, advertiser_count=len(advs))
-
-@app.route('/api/oauth/exchange', methods=['POST'])
-def oauth_exchange():
-    auth_code = request.json.get('auth_code')
-    bc_id     = request.json.get('bc_id')
-    if not auth_code:
-        return jsonify({'ok': False, 'error': 'auth_code obrigatorio'})
-    result = _exchange_token(auth_code)
-    if not result.get('ok'):
-        return jsonify(result)
-    token_data = result['data']
-    tokens = get_tokens()
-    key = str(bc_id) if bc_id else token_data.get('advertiser_id', str(time.time()))
-    tokens[key] = {'access_token': token_data['access_token'],
-                   'advertiser_id': token_data.get('advertiser_id', ''),
-                   'saved_at': datetime.now().isoformat(), 'bc_id': bc_id}
-    save_tokens(tokens)
-    advs = get_advertiser_ids(token_data['access_token'])
-    if bc_id:
-        bcs = get_bcs()
-        for bc in bcs:
-            if str(bc['id']) == str(bc_id):
-                bc['advertiser_ids'] = advs
-                bc['token_ok'] = True
-                break
-        save_bcs(bcs)
-    return jsonify({'ok': True, 'advertiser_count': len(advs), 'advertiser_ids': advs})
-
-def _exchange_token(auth_code):
-    try:
-        r = requests.post(f"{TIKTOK_API_BASE}/oauth2/access_token/", json={
-            'app_id': TIKTOK_APP_ID, 'secret': TIKTOK_APP_SECRET,
-            'auth_code': auth_code, 'grant_type': 'authorization_code'
-        }, timeout=15)
-        d = r.json()
-        if d.get('code') == 0:
-            return {'ok': True, 'data': d['data']}
-        return {'ok': False, 'error': d.get('message', 'Erro API TikTok')}
-    except Exception as e:
-        return {'ok': False, 'error': str(e)}
-
-@app.route('/api/bcs', methods=['GET'])
-def api_get_bcs():
-    bcs    = get_bcs()
-    tokens = get_tokens()
-    for bc in bcs:
-        bc['token_ok'] = str(bc['id']) in tokens
-    return jsonify(bcs)
-
-@app.route('/api/bcs', methods=['POST'])
-def api_add_bc():
-    d = request.json
-    bcs = get_bcs()
-    bc = {
-        'id': int(time.time() * 1000),
-        'nome': d['nome'],
-        'advertiser_ids': d.get('advertiser_ids', []),
-        'accounts': {},
-        'token_ok': False,
-        'criado_em': datetime.now().isoformat()
-    }
-    bcs.append(bc)
-    save_bcs(bcs)
-    return jsonify({'ok': True, 'bc': bc})
-
-@app.route('/api/bcs/<int:bc_id>', methods=['DELETE'])
-def api_del_bc(bc_id):
-    save_bcs([b for b in get_bcs() if b['id'] != bc_id])
-    tokens = get_tokens()
-    tokens.pop(str(bc_id), None)
-    save_tokens(tokens)
-    return jsonify({'ok': True})
-
-@app.route('/api/bcs/<int:bc_id>/advertisers', methods=['GET'])
-def api_get_advertisers(bc_id):
-    token = get_token_for_bc(bc_id)
-    if not token:
-        return jsonify({'ok': False, 'error': 'BC sem token. Conecte via OAuth primeiro.'})
-    advs = get_advertiser_ids(token)
-    bcs  = get_bcs()
-    for bc in bcs:
-        if bc['id'] == bc_id:
-            bc['advertiser_ids'] = advs
-            if 'accounts' not in bc:
-                bc['accounts'] = {}
-            for adv_id in advs:
-                info = get_advertiser_info(token, adv_id)
-                existing = bc['accounts'].get(adv_id, {})
-                bc['accounts'][adv_id] = {
-                    'name': info.get('name', existing.get('name', adv_id)),
-                    'status': info.get('status', ''),
-                    'currency': info.get('currency', ''),
-                    'campaigns_active': existing.get('campaigns_active', 0)
-                }
-            break
-    save_bcs(bcs)
-    return jsonify({'ok': True, 'advertiser_ids': advs, 'total': len(advs)})
-
-@app.route('/api/bcs/<int:bc_id>/campaigns-overview', methods=['POST'])
-def api_campaigns_overview_start(bc_id):
-    token = get_token_for_bc(bc_id)
-    if not token:
-        return jsonify({'ok': False, 'error': 'Sem token. Conecte o BC via OAuth.'})
-    bcs = get_bcs()
-    bc  = next((b for b in bcs if b['id'] == bc_id), None)
-    if not bc:
-        return jsonify({'ok': False, 'error': 'BC nao encontrado'})
-    adv_ids = bc.get('advertiser_ids', [])
-    if not adv_ids:
-        return jsonify({'ok': False, 'error': 'BC sem advertiser IDs.'})
-
-    job_id = f"ov_{str(uuid.uuid4())[:8]}"
-    running_jobs[job_id] = {
-        'logs': [], 'stop': False, 'status': 'running',
-        'total': len(adv_ids), 'done': 0, 'sucesso': 0, 'falha': 0,
-        'campaigns': []
-    }
-
-    def run():
-        from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FuturesTimeout
-        accounts = bc.get('accounts', {})
-        result   = []
-        result_lock = threading.Lock()
-        add_log(job_id, f'Buscando campanhas ativas em {len(adv_ids)} contas (paralelo)...', 'info')
-
-        def fetch_one(idx_adv):
-            idx, adv_id = idx_adv
-            acc_name = accounts.get(str(adv_id), {}).get('name', str(adv_id))
-            try:
-                campaigns = get_active_campaigns(token, adv_id)
-                return idx, adv_id, acc_name, campaigns, None
-            except Exception as e:
-                return idx, adv_id, acc_name, [], str(e)[:80]
-
-        done_count = [0]
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            futures = {executor.submit(fetch_one, (idx, adv_id)): adv_id
-                       for idx, adv_id in enumerate(adv_ids)}
-            for future in as_completed(futures, timeout=600):
-                if running_jobs[job_id]['stop']:
-                    executor.shutdown(wait=False)
-                    break
+# ─── Stats & Status ───────────────────────────────────────────────────────────
+def calcular_estatisticas():
+    stats = {}
+    if not os.path.exists(LOG_DIR): return stats
+    for fname in os.listdir(LOG_DIR):
+        if not fname.endswith('.txt'): continue
+        for t in ['criacao_conta', 'campanha']:
+            sufixo = f'_{t}.txt'
+            if fname.endswith(sufixo):
+                bc = fname[:-len(sufixo)].replace('_', ' ')
+                chave = f"{bc}|{t}"
+                sucesso = falha = 0
+                caminho = os.path.join(LOG_DIR, fname)
                 try:
-                    idx, adv_id, acc_name, campaigns, err = future.result(timeout=12)
-                except Exception as e:
-                    add_log(job_id, f'Conta timeout/erro: {str(e)[:60]}', 'error')
-                    running_jobs[job_id]['falha'] += 1
-                    done_count[0] += 1
-                    running_jobs[job_id]['done'] = done_count[0]
-                    continue
-
-                if err:
-                    add_log(job_id, f'Erro conta {adv_id}: {err}', 'error')
-                    running_jobs[job_id]['falha'] += 1
-                elif campaigns:
-                    with result_lock:
-                        for camp in campaigns:
-                            result.append({
-                                'advertiser_id'  : str(adv_id),
-                                'advertiser_name': acc_name,
-                                'campaign_id'    : str(camp.get('campaign_id', '')),
-                                'campaign_name'  : camp.get('campaign_name', ''),
-                                'status'         : camp.get('operation_status', 'ENABLE'),
-                                'budget'         : camp.get('budget', 0),
-                                'objective'      : camp.get('objective_type', ''),
-                            })
-                    add_log(job_id, f'{acc_name}: {len(campaigns)} ativas', 'success')
-                    running_jobs[job_id]['sucesso'] += 1
-                    if str(adv_id) in accounts:
-                        accounts[str(adv_id)]['campaigns_active'] = len(campaigns)
-                else:
-                    add_log(job_id, f'{acc_name}: sem campanhas ativas', 'info')
-
-                done_count[0] += 1
-                running_jobs[job_id]['done'] = done_count[0]
-                running_jobs[job_id]['campaigns'] = result[:]
-
-        try:
-            fresh_bcs = get_bcs()
-            for b in fresh_bcs:
-                if b['id'] == bc_id:
-                    b['accounts'] = accounts
-                    break
-            save_bcs(fresh_bcs)
-        except: pass
-
-        running_jobs[job_id]['status'] = 'done'
-        running_jobs[job_id]['campaigns'] = result
-        total_camp = len(result)
-        add_log(job_id, f'Concluido — {total_camp} campanhas ativas encontradas',
-                'success' if total_camp > 0 else 'warn')
-
-    threading.Thread(target=run, daemon=True).start()
-    return jsonify({'ok': True, 'job_id': job_id, 'total_contas': len(adv_ids)})
-
-@app.route('/api/overview-job/<job_id>')
-def api_overview_job_status(job_id):
-    offset = int(request.args.get('offset', 0))
-    if job_id not in running_jobs:
-        return jsonify({'ok': False, 'error': 'Job nao encontrado'})
-    j = running_jobs[job_id]
-    return jsonify({
-        'ok': True, 'status': j['status'], 'done': j['done'], 'total': j['total'],
-        'sucesso': j['sucesso'], 'falha': j['falha'],
-        'logs': j['logs'][offset:], 'campaigns': j['campaigns'],
-    })
-
-@app.route('/api/bcs/<int:bc_id>/disable-campaign', methods=['POST'])
-def api_disable_campaign(bc_id):
-    token       = get_token_for_bc(bc_id)
-    adv_id      = request.json.get('advertiser_id')
-    campaign_id = request.json.get('campaign_id')
-    if not token:
-        return jsonify({'ok': False, 'error': 'Sem token'})
-    r = tiktok_post('campaign/status/update', token, {
-        'advertiser_id': adv_id,
-        'campaign_ids' : [campaign_id],
-        'operation_status': 'DISABLE'
-    })
-    if r.get('code') == 0:
-        return jsonify({'ok': True})
-    return jsonify({'ok': False, 'error': r.get('message', str(r))})
-
-@app.route('/api/bcs/<int:bc_id>/disable-all-campaigns', methods=['POST'])
-def api_disable_all_campaigns(bc_id):
-    """
-    Desativa TODAS as campanhas — usa get_all_campaigns_to_disable (sem filtro de status)
-    para garantir que campanhas com saldo zerado também sejam desativadas.
-    Processa em lotes de 20 (limite da API TikTok).
-    """
-    token = get_token_for_bc(bc_id)
-    if not token:
-        return jsonify({'ok': False, 'error': 'Sem token'})
-    bcs = get_bcs()
-    bc  = next((b for b in bcs if b['id'] == bc_id), None)
-    if not bc:
-        return jsonify({'ok': False, 'error': 'BC nao encontrado'})
-
-    adv_ids = bc.get('advertiser_ids', [])
-    job_id  = str(uuid.uuid4())[:8]
-    running_jobs[job_id] = {'logs':[], 'stop':False, 'status':'running',
-                             'total':len(adv_ids), 'done':0, 'sucesso':0, 'falha':0}
-
-    def run():
-        add_log(job_id, f'Desativando TODAS as campanhas em {len(adv_ids)} contas...', 'warn')
-        add_log(job_id, 'Modo: sem filtro de status (inclui campanhas com saldo zerado)', 'info')
-        total_disabled = 0
-
-        for idx, adv_id in enumerate(adv_ids):
-            if running_jobs[job_id]['stop']:
-                break
-            try:
-                campaigns = get_all_campaigns_to_disable(token, adv_id)
-                acc_name  = bc.get('accounts', {}).get(str(adv_id), {}).get('name', str(adv_id))
-
-                if not campaigns:
-                    add_log(job_id, f'  [{idx+1}/{len(adv_ids)}] {acc_name} — nenhuma campanha')
-                    running_jobs[job_id]['done'] = idx + 1
-                    time.sleep(0.2)
-                    continue
-
-                camp_ids = [str(c['campaign_id']) for c in campaigns]
-                # Lotes de 20 — limite da API TikTok
-                lotes = [camp_ids[i:i+20] for i in range(0, len(camp_ids), 20)]
-                lote_ok = True
-
-                for lote in lotes:
-                    r = tiktok_post('campaign/status/update', token, {
-                        'advertiser_id': adv_id,
-                        'campaign_ids' : lote,
-                        'operation_status': 'DISABLE'
-                    })
-                    if r.get('code') == 0:
-                        total_disabled += len(lote)
-                    else:
-                        add_log(job_id, f'  [{idx+1}] lote falhou: {r.get("message","")}', 'error')
-                        lote_ok = False
-                    time.sleep(0.3)
-
-                if lote_ok:
-                    add_log(job_id, f'  [{idx+1}/{len(adv_ids)}] ✓ {acc_name} — {len(camp_ids)} desativadas', 'success')
-                    running_jobs[job_id]['sucesso'] += 1
-                else:
-                    running_jobs[job_id]['falha'] += 1
-
-            except Exception as e:
-                add_log(job_id, f'  [{idx+1}/{len(adv_ids)}] Erro {adv_id}: {str(e)[:100]}', 'error')
-                running_jobs[job_id]['falha'] += 1
-
-            running_jobs[job_id]['done'] = idx + 1
-            time.sleep(0.2)
-
-        running_jobs[job_id]['status'] = 'done'
-        add_log(job_id, f'Concluido — {total_disabled} campanhas desativadas no total',
-                'success' if running_jobs[job_id]['falha'] == 0 else 'warn')
-
-    threading.Thread(target=run, daemon=True).start()
-    return jsonify({'ok': True, 'job_id': job_id})
-
-@app.route('/api/pixels/<int:bc_id>', methods=['GET'])
-def api_get_pixels(bc_id):
-    token = get_token_for_bc(bc_id)
-    if not token:
-        return jsonify({'ok': False, 'error': 'Sem token'})
-    bcs = get_bcs()
-    bc  = next((b for b in bcs if b['id'] == bc_id), None)
-    if not bc or not bc.get('advertiser_ids'):
-        return jsonify({'ok': False, 'error': 'Sem advertiser IDs'})
-    adv_id = bc['advertiser_ids'][0]
-    d = tiktok_get('pixel/list', token, adv_id)
-    if d.get('code') == 0:
-        pixels = [{'id': p['pixel_id'], 'name': p['pixel_name']} for p in d['data'].get('pixels', [])]
-        return jsonify({'ok': True, 'pixels': pixels})
-    return jsonify({'ok': False, 'error': d.get('message', 'Erro')})
-
-@app.route('/api/sparks', methods=['GET'])
-def api_get_sparks():
-    return jsonify(get_sparks())
-
-@app.route('/api/sparks', methods=['POST'])
-def api_add_spark():
-    d      = request.json
-    sparks = get_sparks()
-    value  = d.get('value', '')
-    spark  = {
-        'id'         : str(uuid.uuid4())[:8],
-        'label'      : d.get('label', ''),
-        'type'       : d.get('type', 'post'),
-        'value'      : value,
-        'item_id'    : extract_item_id_from_url(value) or d.get('item_id', ''),
-        'bc_id'      : d.get('bc_id', ''),
-        'identity_id': d.get('identity_id', ''),
-        'criado_em'  : datetime.now().isoformat()
-    }
-    sparks.append(spark)
-    save_sparks(sparks)
-    return jsonify({'ok': True, 'spark': spark})
-
-@app.route('/api/sparks/<spark_id>', methods=['DELETE'])
-def api_del_spark(spark_id):
-    save_sparks([s for s in get_sparks() if s['id'] != spark_id])
-    return jsonify({'ok': True})
-
-@app.route('/api/resolve-item-id', methods=['POST'])
-def resolve_item_id():
-    text    = request.json.get('text', '').strip()
-    item_id = extract_item_id_from_url(text)
-    if item_id:
-        return jsonify({'ok': True, 'item_id': item_id})
-    return jsonify({'ok': False, 'error': 'Nao foi possivel extrair o item_id.'})
-
-@app.route('/api/criar-campanhas', methods=['POST'])
-def criar_campanhas():
-    d = request.json
-    bc_id         = d['bc_id']
-    adv_ids       = d.get('advertiser_ids', [])
-    objetivo      = d.get('objetivo', 'VIDEO_VIEWS')
-    paises        = d.get('paises', ['BR'])
-    idade_min     = d.get('idade_min', 18)
-    idade_max     = d.get('idade_max', 55)
-    gender        = d.get('gender', 'GENDER_UNLIMITED')
-    pixel_id      = d.get('pixel_id', '')
-    optimization  = d.get('optimization_event', 'PURCHASE')
-    post_code     = d.get('post_code', '')
-    post_type     = d.get('post_type', 'SINGLE_VIDEO')
-    identity_id   = d.get('identity_id', '')
-    product_url   = d.get('product_url', '')
-    cta           = d.get('cta', 'LEARN_MORE')
-    num_adgroups  = int(d.get('num_adgroups', 1))
-    budget        = float(d.get('budget', 50))
-    cbo_on        = bool(d.get('budget_optimize_on', False))
-    campaign_name = d.get('campaign_name', 'TikAuto')
-    adgroup_name  = d.get('adgroup_name', 'AdGroup')
-
-    raw_item_input = d.get('item_id', '').strip()
-    item_id_input  = extract_item_id_from_url(raw_item_input) if raw_item_input else ''
-
-    token = get_token_for_bc(bc_id)
-    if not token:
-        return jsonify({'ok': False, 'error': 'BC sem token OAuth'})
-
-    if not adv_ids:
-        bcs = get_bcs()
-        bc  = next((b for b in bcs if b['id'] == bc_id), None)
-        adv_ids = bc.get('advertiser_ids', []) if bc else []
-    if not adv_ids:
-        return jsonify({'ok': False, 'error': 'Nenhum advertiser ID disponivel'})
-
-    obj_cfg = OBJETIVO_CONFIG.get(objetivo, OBJETIVO_CONFIG['VIDEO_VIEWS'])
-    age_map = {13:'AGE_13_17',18:'AGE_18_24',25:'AGE_25_34',
-               35:'AGE_35_44',45:'AGE_45_54',55:'AGE_55_100'}
-    age_groups = [lbl for val,lbl in age_map.items() if idade_min<=val<=idade_max] \
-                 or ['AGE_18_24','AGE_25_34','AGE_35_44']
-
-    total  = len(adv_ids)
-    job_id = str(uuid.uuid4())[:8]
-    running_jobs[job_id] = {'logs':[],'stop':False,'status':'running',
-                             'total':total,'done':0,'sucesso':0,'falha':0}
-    jobs = get_jobs()
-    jobs.append({'id':job_id,'tipo':'criar_campanhas','bc_id':bc_id,
-                 'objetivo':objetivo,'criado_em':datetime.now().isoformat(),'status':'running'})
-    save_jobs(jobs)
-
-    def run():
-        add_log(job_id, f'Iniciando campanhas em {total} contas — objetivo: {objetivo}', 'info')
-        if item_id_input:
-            add_log(job_id, f'Item ID resolvido: {item_id_input} (entrada: "{raw_item_input}")', 'info')
-
-        for idx, adv_id in enumerate(adv_ids):
-            if running_jobs[job_id]['stop']:
-                add_log(job_id, 'Parado pelo usuario.', 'warn'); break
-            add_log(job_id, f'[{idx+1}/{total}] Conta {adv_id}...')
-            try:
-                ts = datetime.now().strftime('%Y%m%d%H%M%S')
-                if cbo_on:
-                    camp_payload = {'advertiser_id':adv_id,'campaign_name':f"{campaign_name}_{ts}",
-                                    'objective_type':obj_cfg['objective_type'],'budget_optimize_on':True,
-                                    'budget_mode':'BUDGET_MODE_DAY','budget':budget,
-                                    'campaign_type':'REGULAR_CAMPAIGN','special_industries':[]}
-                else:
-                    camp_payload = {'advertiser_id':adv_id,'campaign_name':f"{campaign_name}_{ts}",
-                                    'objective_type':obj_cfg['objective_type'],'budget_mode':'BUDGET_MODE_INFINITE',
-                                    'campaign_type':'REGULAR_CAMPAIGN','special_industries':[]}
-
-                r_camp = tiktok_post('campaign/create', token, camp_payload)
-                if r_camp.get('code') != 0:
-                    raise Exception(f"Campanha: {r_camp.get('message', str(r_camp))}")
-                camp_id = r_camp['data']['campaign_id']
-                add_log(job_id, f'  Campanha criada: {camp_id}', 'success')
-
-                adgroup_ids = []
-                for ag_i in range(num_adgroups):
-                    ag_name = adgroup_name if num_adgroups==1 else f"{adgroup_name}_{ag_i+1}"
-                    ag_payload = {
-                        'advertiser_id':adv_id,'campaign_id':camp_id,'adgroup_name':ag_name,
-                        'placement_type':'PLACEMENT_TYPE_NORMAL','placements':['PLACEMENT_TIKTOK'],
-                        'location_ids':get_location_ids(paises),'age_groups':age_groups,'gender':gender,
-                        'budget_mode':'BUDGET_MODE_DAY','budget':budget,'schedule_type':'SCHEDULE_FROM_NOW',
-                        'schedule_start_time':datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                        'optimization_goal':obj_cfg['optimization_goal'],'billing_event':obj_cfg['billing_event'],
-                        'bid_type':'BID_TYPE_NO_BID','pacing':'PACING_MODE_SMOOTH','operation_status':'ENABLE',
-                    }
-                    if objetivo=='CONVERSIONS' and pixel_id:
-                        ag_payload['pixel_id']=pixel_id; ag_payload['optimization_event']=optimization
-                    r_ag = tiktok_post('adgroup/create', token, ag_payload)
-                    if r_ag.get('code') != 0:
-                        add_log(job_id, f'  Ad Group {ag_i+1}: {r_ag.get("message")}', 'error'); continue
-                    adgroup_ids.append(r_ag['data']['adgroup_id'])
-                    add_log(job_id, f'  Ad Group {ag_i+1}: {r_ag["data"]["adgroup_id"]}', 'success')
-                    time.sleep(0.5)
-
-                if not adgroup_ids:
-                    raise Exception("Nenhum Ad Group criado")
-
-                resolved_identity_id = identity_id
-                resolved_item_id     = item_id_input
-
-                if not resolved_item_id and post_code:
-                    safe_code = post_code.replace('+', '%2B')
-                    r_info = tiktok_get('tt_video/info', token, adv_id, {'auth_code': safe_code})
-                    if r_info.get('code') == 0:
-                        data_info        = r_info.get('data', {})
-                        resolved_item_id = str(data_info.get('item_info', {}).get('item_id', ''))
-                        if not resolved_identity_id:
-                            resolved_identity_id = data_info.get('user_info', {}).get('identity_id', '')
-
-                if not resolved_identity_id:
-                    for id_type in ['TT_USER','AUTH_CODE','BC_AUTH_TT']:
-                        r_ident = tiktok_get('identity/get', token, adv_id, {'identity_type': id_type})
-                        if r_ident.get('code') == 0:
-                            available = [i for i in r_ident.get('data',{}).get('identity_list',[])
-                                         if i.get('available_status')=='AVAILABLE']
-                            if available:
-                                resolved_identity_id = available[0].get('identity_id',''); break
-                    if not resolved_identity_id:
-                        add_log(job_id, '  Nenhum identity encontrado', 'warn')
-
-                for ag_id in adgroup_ids:
-                    if not resolved_item_id:
-                        add_log(job_id, '  Ad pulado: sem item_id', 'warn'); break
-                    if not resolved_identity_id:
-                        add_log(job_id, '  Ad pulado: sem identity_id', 'warn'); break
-                    creative = {
-                        'ad_name': f"Ad_{ts}", 'ad_format': post_type,
-                        'identity_type': 'BC_AUTH_TT', 'identity_id': resolved_identity_id,
-                        'identity_authorized_bc_id': '7607905792628621313',
-                        'tiktok_item_id': resolved_item_id, 'call_to_action': cta,
-                    }
-                    if product_url: creative['landing_page_url'] = product_url
-                    r_ad = tiktok_post('ad/create', token,
-                                       {'advertiser_id':adv_id,'adgroup_id':ag_id,'creatives':[creative]})
-                    if r_ad.get('code') != 0:
-                        add_log(job_id, f'  Ad: {r_ad.get("message")}', 'error')
-                    else:
-                        add_log(job_id, f'  Ad criado: {r_ad.get("data",{}).get("ad_ids",[])}', 'success')
-                    time.sleep(0.3)
-
-                running_jobs[job_id]['sucesso'] += 1
-                add_log(job_id, f'[{idx+1}/{total}] Conta concluida!', 'success')
-            except Exception as e:
-                running_jobs[job_id]['falha'] += 1
-                add_log(job_id, f'[{idx+1}/{total}] Erro: {str(e)[:200]}', 'error')
-
-            running_jobs[job_id]['done'] = idx + 1
-            time.sleep(0.5)
-
-        running_jobs[job_id]['status'] = 'done'
-        s = running_jobs[job_id]['sucesso']
-        f = running_jobs[job_id]['falha']
-        add_log(job_id, f'Concluido: {s} sucessos, {f} falhas', 'success' if f==0 else 'warn')
-        jobs = get_jobs()
-        for j in jobs:
-            if j['id']==job_id: j['status']='done'; j['sucesso']=s; j['falha']=f; break
-        save_jobs(jobs)
-
-    threading.Thread(target=run, daemon=True).start()
-    return jsonify({'ok': True, 'job_id': job_id, 'total_contas': total})
-
-@app.route('/api/job/<job_id>/logs')
-def job_logs(job_id):
-    offset = int(request.args.get('offset', 0))
-    if job_id in running_jobs:
-        j = running_jobs[job_id]
-        logs=j['logs']; status=j['status']; done=j['done']
-        total=j['total']; sucesso=j['sucesso']; falha=j['falha']
-    else:
-        log_file = os.path.join(LOGS_DIR, f'{job_id}.jsonl')
-        logs = []
-        if os.path.exists(log_file):
-            with open(log_file,'r',encoding='utf-8') as f:
-                for line in f:
-                    try: logs.append(json.loads(line))
-                    except: pass
-        status='done'; done=0; total=0; sucesso=0; falha=0
-    return jsonify({'logs':logs[offset:],'total_logs':len(logs),'status':status,
-                    'done':done,'total':total,'sucesso':sucesso,'falha':falha})
-
-@app.route('/api/job/<job_id>/stop', methods=['POST'])
-def job_stop(job_id):
-    if job_id in running_jobs:
-        running_jobs[job_id]['stop'] = True
-        return jsonify({'ok': True})
-    return jsonify({'ok': False, 'error': 'Job nao encontrado'})
-
-@app.route('/api/jobs')
-def list_jobs():
-    return jsonify(get_jobs()[-50:])
+                    with open(caminho, 'r', encoding='utf-8') as f:
+                        for linha in f:
+                            if '[SUCESSO]' in linha: sucesso += 1
+                            elif '[FALHA]' in linha:  falha   += 1
+                except: pass
+                stats[chave] = {'bc_nome':bc,'tipo':t,'sucesso':sucesso,'falha':falha,'total':sucesso+falha}
+    return stats
 
 @app.route('/api/stats')
 def api_stats():
-    bcs    = get_bcs()
-    tokens = get_tokens()
-    jobs   = get_jobs()
-    contas_total = sum(len(b.get('advertiser_ids', [])) for b in bcs)
-    camp_jobs    = [j for j in jobs if j.get('tipo') == 'criar_campanhas']
-    rodando      = len([j for j in running_jobs.values() if j.get('status') == 'running'])
-    return jsonify({
-        'total_bcs'     : len(bcs),
-        'bcs_conectados': sum(1 for b in bcs if str(b['id']) in tokens),
-        'total_contas'  : contas_total,
-        'camp_sucesso'  : sum(j.get('sucesso', 0) for j in camp_jobs),
-        'camp_falha'    : sum(j.get('falha', 0) for j in camp_jobs),
-        'rodando'       : rodando,
-        'total_sparks'  : len(get_sparks()),
-    })
+    stats = calcular_estatisticas()
+    running = [k for k,p in processos.items() if p.poll() is None]
+    return jsonify({'stats': list(stats.values()), 'running': running})
 
-@app.route('/api/debug/identity/<int:bc_id>')
-def debug_identity(bc_id):
-    token = get_token_for_bc(bc_id)
-    if not token: return jsonify({'error': 'sem token'})
-    results = {}
-    for id_type in ['TT_USER','AUTH_CODE','BC_AUTH_TT']:
-        creative = {'ad_name':f'debug_{id_type}','ad_format':'SINGLE_VIDEO',
-                    'identity_type':id_type,'identity_id':'7610243151726575617',
-                    'tiktok_item_id':'7610455329033227541','call_to_action':'LEARN_MORE'}
-        if id_type=='BC_AUTH_TT': creative['identity_authorized_bc_id']='7607905792628621313'
-        r = tiktok_post('ad/create', token, {'advertiser_id':'7608267784702853138',
-                                              'adgroup_id':'1858021589796114','creatives':[creative]})
-        results[id_type] = {'code':r.get('code'),'message':r.get('message','')}
-    return jsonify(results)
+@app.route('/api/status')
+def status():
+    global logs_pend, rels_pend
+    logs = logs_pend.copy(); logs_pend = []
+    rels = rels_pend.copy(); rels_pend = []
+    running = [k for k,p in processos.items() if p.poll() is None]
+    totais = {}
+    for fname in os.listdir(LOG_DIR):
+        if fname.startswith('total_') and fname.endswith('.txt'):
+            bc_id = fname.replace('total_','').replace('.txt','')
+            try:
+                with open(os.path.join(LOG_DIR, fname), 'r') as f:
+                    totais[bc_id] = int(f.read().strip())
+            except: pass
+    return jsonify({'logs':logs,'relatorios':rels,'running':running,'totais_contas':totais})
+
+# ─── Upload & Logs ────────────────────────────────────────────────────────────
+@app.route('/api/upload-contas', methods=['POST'])
+def upload_contas():
+    if 'arquivo' not in request.files:
+        return jsonify({'ok': False, 'message': 'Nenhum arquivo enviado'})
+    arquivo = request.files['arquivo']
+    bc_nome = request.form.get('bc_nome', 'geral')
+    tipo    = request.form.get('tipo', 'campanha')
+    if arquivo.filename == '':
+        return jsonify({'ok': False, 'message': 'Arquivo inválido'})
+    caminho = os.path.join(UPLOAD_DIR, secure_filename(arquivo.filename))
+    arquivo.save(caminho)
+    importadas, erro = importar_contas_arquivo(bc_nome, tipo, caminho)
+    if erro: return jsonify({'ok': False, 'message': f'Erro: {erro}'})
+    adicionar_log(f'[{bc_nome}] {importadas} contas importadas!', 'success')
+    return jsonify({'ok': True, 'message': f'{importadas} contas importadas com sucesso!'})
+
+@app.route('/api/contas-processadas')
+def contas_processadas():
+    bc_nome = request.args.get('bc_nome','')
+    tipo    = request.args.get('tipo','campanha')
+    arq = os.path.join(LOG_DIR, f"{bc_nome.replace(' ','_')}_{tipo}.txt")
+    if not os.path.exists(arq):
+        return jsonify({'total':0,'sucesso':0,'falha':0,'contas':[]})
+    contas = []; sucesso = falha = 0
+    with open(arq, 'r', encoding='utf-8') as f:
+        for linha in f.readlines():
+            linha = linha.strip()
+            if not linha: continue
+            partes = linha.split(' | ')
+            status = 'sucesso' if '[SUCESSO]' in linha else 'falha'
+            nome   = partes[1].strip() if len(partes) > 1 else linha
+            horario= partes[0].replace('[SUCESSO]','').replace('[FALHA]','').strip() if partes else ''
+            if status == 'sucesso': sucesso += 1
+            else: falha += 1
+            contas.append({'nome':nome,'status':status,'horario':horario})
+    return jsonify({'total':len(contas),'sucesso':sucesso,'falha':falha,'contas':contas[-50:]})
+
+# ─── Spark Posts CRUD ─────────────────────────────────────────────────────────
+@app.route('/api/spark-posts', methods=['GET'])
+def api_get_sparks():
+    return jsonify(get_spark_posts())
+
+@app.route('/api/spark-posts', methods=['POST'])
+def api_add_spark():
+    import uuid, re
+    d      = request.json
+    value  = d.get('value','').strip()
+    # Extrai item_id da URL se for link TikTok
+    item_id = d.get('item_id','')
+    if not item_id:
+        m = re.search(r'/video/(\d{10,25})', value)
+        if m: item_id = m.group(1)
+        elif re.match(r'^\d{10,25}$', value): item_id = value
+    posts = get_spark_posts()
+    post  = {
+        'id'      : str(uuid.uuid4())[:8],
+        'label'   : d.get('label', value[:40]),
+        'value'   : value,
+        'item_id' : item_id,
+        'criado_em': datetime.now().isoformat()
+    }
+    posts.append(post)
+    save_spark_posts(posts)
+    return jsonify({'ok': True, 'post': post})
+
+@app.route('/api/spark-posts/<post_id>', methods=['DELETE'])
+def api_del_spark(post_id):
+    save_spark_posts([p for p in get_spark_posts() if p['id'] != post_id])
+    return jsonify({'ok': True})
+
+# ─── Identities CRUD ──────────────────────────────────────────────────────────
+@app.route('/api/identities', methods=['GET'])
+def api_get_identities():
+    return jsonify(get_identities())
+
+@app.route('/api/identities', methods=['POST'])
+def api_add_identity():
+    import uuid
+    d = request.json
+    idents = get_identities()
+    ident  = {
+        'id'         : str(uuid.uuid4())[:8],
+        'label'      : d.get('label',''),
+        'identity_id': d.get('identity_id',''),
+        'bc_id'      : d.get('bc_id','7607905792628621313'),
+        'criado_em'  : datetime.now().isoformat()
+    }
+    idents.append(ident)
+    save_identities(idents)
+    return jsonify({'ok': True, 'identity': ident})
+
+@app.route('/api/identities/<ident_id>', methods=['DELETE'])
+def api_del_identity(ident_id):
+    save_identities([i for i in get_identities() if i['id'] != ident_id])
+    return jsonify({'ok': True})
+
+# ─── System ───────────────────────────────────────────────────────────────────
+@app.route('/api/test-connection', methods=['POST'])
+def test_connection():
+    data = request.json
+    url  = data.get('url','http://local.adspower.net:50325')
+    try:
+        r = req.get(f"{url}/status", timeout=5)
+        return jsonify({'ok': True, 'message': '✅ ADS Power conectado!'})
+    except:
+        return jsonify({'ok': False, 'message': '❌ Não foi possível conectar ao ADS Power'})
+
+@app.route('/api/stop', methods=['POST'])
+def stop():
+    for fname in os.listdir(LOG_DIR):
+        if fname.startswith('live_') and fname.endswith('.jsonl'):
+            bc_id     = fname.replace('live_','').replace('.jsonl','')
+            stop_file = os.path.join(LOG_DIR, f'stop_{bc_id}.flag')
+            open(stop_file,'w').close()
+    for key, proc in list(processos.items()):
+        try:
+            if proc.poll() is None: proc.terminate()
+        except: pass
+    processos.clear()
+    adicionar_log('Todos os processos foram interrompidos', 'warn')
+    return jsonify({'ok': True})
+
+# ─── Start Contas ─────────────────────────────────────────────────────────────
+@app.route('/api/start-contas', methods=['POST'])
+def start_contas():
+    data       = request.json
+    profile_id = data['profile_id']
+    quantidade = data.get('quantidade', 100)
+    bc_id      = str(data['bc_id'])
+    bc_nome    = data['bc_nome']
+    key        = f"contas_{bc_id}"
+
+    if key in processos and processos[key].poll() is None:
+        return jsonify({'ok': False, 'message': f'{bc_nome} já está em execução!'})
+
+    stop_file = os.path.join(LOG_DIR, f'stop_{bc_id}.flag')
+    if os.path.exists(stop_file): os.remove(stop_file)
+    live_file = os.path.join(LOG_DIR, f'live_{bc_id}.jsonl')
+    if os.path.exists(live_file): os.remove(live_file)
+    log_offsets[bc_id] = 0
+
+    worker_path = os.path.join(os.path.dirname(__file__), 'worker.py')
+    proc = subprocess.Popen(
+        [sys.executable, worker_path, 'contas', profile_id, bc_id, bc_nome, str(quantidade)],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+    )
+    processos[key]  = proc
+    stop_flags[key] = False
+    threading.Thread(target=monitorar_worker, args=(bc_id, key), daemon=True).start()
+    return jsonify({'ok': True, 'message': f'Processo iniciado para {bc_nome}'})
+
+# ─── Start Campanhas (via ADS Power / Playwright) ─────────────────────────────
+@app.route('/api/start-campanhas', methods=['POST'])
+def start_campanhas():
+    data        = request.json
+    profile_id  = data['profile_id']
+    post_code   = data['post_code']
+    simultaneas = data.get('simultaneas', 1)
+    bc_id       = str(data['bc_id'])
+    bc_nome     = data['bc_nome']
+
+    # Novos campos opcionais
+    num_conjuntos   = int(data.get('num_conjuntos', 1))
+    data_inicio     = data.get('data_inicio', '')   # formato: YYYY-MM-DD HH:MM
+    data_fim        = data.get('data_fim', '')       # formato: YYYY-MM-DD HH:MM
+    objetivo        = data.get('objetivo', 'VIDEO_VIEWS')
+    orcamento       = data.get('orcamento', '')
+    paises          = data.get('paises', 'BR')
+
+    key = f"camp_{bc_id}"
+    if key in processos and processos[key].poll() is None:
+        return jsonify({'ok': False, 'message': f'{bc_nome} já está em execução!'})
+
+    stop_file = os.path.join(LOG_DIR, f'stop_{bc_id}.flag')
+    if os.path.exists(stop_file): os.remove(stop_file)
+    live_file = os.path.join(LOG_DIR, f'live_{bc_id}.jsonl')
+    if os.path.exists(live_file): os.remove(live_file)
+    log_offsets[bc_id] = 0
+
+    # Salva config da campanha em arquivo para o worker ler
+    cfg = {
+        'post_code'    : post_code,
+        'simultaneas'  : simultaneas,
+        'num_conjuntos': num_conjuntos,
+        'data_inicio'  : data_inicio,
+        'data_fim'     : data_fim,
+        'objetivo'     : objetivo,
+        'orcamento'    : orcamento,
+        'paises'       : paises,
+    }
+    cfg_file = os.path.join(LOG_DIR, f'cfg_{bc_id}.json')
+    with open(cfg_file, 'w', encoding='utf-8') as f:
+        json.dump(cfg, f, ensure_ascii=False)
+
+    worker_path = os.path.join(os.path.dirname(__file__), 'worker.py')
+    proc = subprocess.Popen(
+        [sys.executable, worker_path, 'campanhas', profile_id, bc_id, bc_nome, post_code, str(simultaneas)],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+    )
+    processos[key]  = proc
+    stop_flags[key] = False
+    threading.Thread(target=monitorar_worker, args=(bc_id, key), daemon=True).start()
+    return jsonify({'ok': True, 'message': f'Campanhas iniciadas para {bc_nome}'})
+
+# ─── Exportar Relatório ───────────────────────────────────────────────────────
+@app.route('/api/export-relatorio')
+def export_relatorio():
+    stats = calcular_estatisticas()
+    return jsonify({'stats': list(stats.values()), 'gerado_em': datetime.now().isoformat()})
+
+# ─── Worker inline (fallback se worker.py não existir) ─────────────────────────
+def run_criar_contas(profile_id, quantidade, bc_id, bc_nome, key):
+    from playwright.sync_api import sync_playwright
+    import random, string
+
+    adicionar_log(f'[{bc_nome}] Conectando ao ADS Power...', 'info')
+    try:
+        res = req.get('http://local.adspower.net:50325/api/v1/browser/start',
+                      params={'user_id': profile_id}).json()
+        if res['code'] != 0:
+            adicionar_log(f'[{bc_nome}] Erro ao conectar: {res}', 'error'); return
+
+        ws_url = res['data']['ws']['puppeteer']
+        adicionar_log(f'[{bc_nome}] Conectado! Iniciando criação...', 'success')
+
+        def gerar_nome():
+            return f"TKTK_{''.join(random.choices(string.ascii_uppercase,k=5))}_{''.join(random.choices(string.digits,k=3))}"
+
+        with sync_playwright() as p:
+            browser = p.chromium.connect_over_cdp(ws_url)
+            context = browser.contexts[0]
+            page    = context.pages[0]
+            contas  = 0
+
+            while contas < quantidade:
+                if stop_flags.get(key):
+                    adicionar_log(f'[{bc_nome}] Processo interrompido!', 'warn'); return
+                adicionar_log(f'[{bc_nome}] Criando conta {contas+1}/{quantidade}...', 'info')
+                try:
+                    page.goto('https://business.tiktok.com/manage/accounts/adv', wait_until='domcontentloaded', timeout=60000)
+                    page.wait_for_selector('text=Add advertiser account', timeout=30000)
+                    time.sleep(random.uniform(2,3))
+                    page.click('text=Add advertiser account'); time.sleep(random.uniform(2,3))
+                    page.wait_for_selector('text=Create New')
+                    page.click('text=Create New'); time.sleep(random.uniform(2,3))
+                    page.wait_for_selector('text=Next')
+                    page.click('text=Next'); time.sleep(random.uniform(2,3))
+                    page.mouse.wheel(0, 600); time.sleep(random.uniform(2,3))
+                    nome = gerar_nome()
+                    page.wait_for_selector("input[placeholder='Enter ad account name']")
+                    page.fill("input[placeholder='Enter ad account name']", nome); time.sleep(random.uniform(2,3))
+                    page.click('text=Select a time zone'); time.sleep(random.uniform(2,3))
+                    page.fill("input[placeholder='Search']", 'Sao Paulo'); time.sleep(random.uniform(2,3))
+                    page.click('text=Sao Paulo Time'); time.sleep(random.uniform(2,3))
+                    criada = False
+                    for t in range(9):
+                        page.click('text=Confirm'); time.sleep(random.uniform(2,3))
+                        if page.locator('text=Create advertiser account').count() > 0:
+                            adicionar_log(f'[{bc_nome}] Tentativa {t+1}/9...', 'info')
+                        else:
+                            criada = True; break
+                    if not criada:
+                        espera = random.uniform(180,300)
+                        adicionar_log(f'[{bc_nome}] Limite. Aguardando {round(espera/60,1)}min...', 'warn')
+                        time.sleep(espera); continue
+                    if page.locator('text=Skip').count() > 0:
+                        page.click('text=Skip'); time.sleep(random.uniform(2,3))
+                    contas += 1
+                    adicionar_log(f'[{bc_nome}] ✅ {nome} criada! ({contas}/{quantidade})', 'success')
+                    adicionar_relatorio(bc_id, bc_nome, nome, 'criacao_conta', 'sucesso')
+                except Exception as e:
+                    espera = random.uniform(180,300)
+                    adicionar_log(f'[{bc_nome}] ❌ Erro: {str(e)[:60]}. Aguardando...', 'error')
+                    adicionar_relatorio(bc_id, bc_nome, f'conta_{contas+1}', 'criacao_conta', 'falha', str(e)[:100])
+                    time.sleep(espera)
+        adicionar_log(f'[{bc_nome}] ✅ Concluído! {contas} contas criadas.', 'success')
+    except Exception as e:
+        adicionar_log(f'[{bc_nome}] ❌ Erro fatal: {str(e)[:100]}', 'error')
+
+def run_criar_campanhas(profile_id, post_code, simultaneas, bc_id, bc_nome, key):
+    from playwright.sync_api import sync_playwright
+    import math, json
+
+    # Lê config extra se disponível
+    cfg_file = os.path.join(LOG_DIR, f'cfg_{bc_id}.json')
+    cfg = {}
+    if os.path.exists(cfg_file):
+        try:
+            with open(cfg_file, 'r', encoding='utf-8') as f: cfg = json.load(f)
+        except: pass
+
+    num_conjuntos = int(cfg.get('num_conjuntos', 1))
+    data_inicio   = cfg.get('data_inicio', '')
+    data_fim      = cfg.get('data_fim', '')
+    objetivo      = cfg.get('objetivo', 'VIDEO_VIEWS')
+
+    adicionar_log(f'[{bc_nome}] Iniciando campanhas... ({num_conjuntos} conjunto(s))', 'info')
+    if data_inicio: adicionar_log(f'[{bc_nome}] Início agendado: {data_inicio}', 'info')
+    if data_fim:    adicionar_log(f'[{bc_nome}] Fim agendado: {data_fim}', 'info')
+
+    try:
+        res = req.get('http://local.adspower.net:50325/api/v1/browser/start',
+                      params={'user_id': profile_id}).json()
+        if res['code'] != 0:
+            adicionar_log(f'[{bc_nome}] Erro ao conectar', 'error'); return
+
+        ws_url = res['data']['ws']['puppeteer']
+
+        def clicar_ks(page, texto):
+            return page.evaluate(f"""
+                () => {{
+                    function b(r) {{
+                        let els = r.querySelectorAll('*');
+                        for (let el of els) {{
+                            let txt = (el.innerText||'').trim();
+                            if (txt === '{texto}' && el.tagName.includes('KS-BUTTON')) {{
+                                el.click(); return el.tagName;
+                            }}
+                            if (el.shadowRoot) {{ let x=b(el.shadowRoot); if(x) return x; }}
+                        }}
+                        return false;
+                    }}
+                    return b(document);
+                }}
+            """)
+
+        with sync_playwright() as p:
+            browser    = p.chromium.connect_over_cdp(ws_url)
+            context    = browser.contexts[0]
+            lista_page = context.pages[0]
+
+            lista_page.goto('https://business.tiktok.com/manage/accounts/adv', wait_until='domcontentloaded')
+            time.sleep(10)
+
+            total_txt  = lista_page.evaluate("""
+                () => {
+                    let els = document.querySelectorAll('*');
+                    for (let el of els) {
+                        if (el.children.length === 0 && el.textContent.includes('Records in Total'))
+                            return el.textContent;
+                    }
+                    return '';
+                }
+            """)
+            numeros      = ''.join(filter(str.isdigit, total_txt.split('Records')[0]))
+            total_contas = int(numeros) if numeros else 82
+            total_pags   = math.ceil(total_contas / 10)
+            adicionar_log(f'[{bc_nome}] {total_contas} contas em {total_pags} páginas', 'info')
+
+            conta_global = 1
+            for pag in range(1, total_pags + 1):
+                if stop_flags.get(key): break
+                if pag > 1:
+                    lista_page.evaluate(f"""
+                        () => {{
+                            let els = document.querySelectorAll('*');
+                            for (let el of els) {{
+                                if (el.innerText && el.innerText.trim() === '{pag}' && el.offsetParent !== null) {{
+                                    let r = el.getBoundingClientRect();
+                                    if (r.width < 50 && r.height < 50) {{ el.click(); return true; }}
+                                }}
+                            }}
+                            return false;
+                        }}
+                    """)
+                    time.sleep(8)
+
+                botoes = lista_page.locator('text=Go to Ads Manager').all()
+                for idx in range(len(botoes)):
+                    if stop_flags.get(key): break
+                    dashboard = None
+                    nome_conta = f'conta_{conta_global}'
+                    try:
+                        botoes = lista_page.locator('text=Go to Ads Manager').all()
+                        with context.expect_page(timeout=20000) as pi:
+                            botoes[idx].click()
+                        dashboard = pi.value
+                        time.sleep(10)
+                        adicionar_log(f'[{bc_nome}] Processando {conta_global}/{total_contas}...', 'info')
+
+                        if conta_ja_processada(bc_nome, 'campanha', nome_conta):
+                            adicionar_log(f'[{bc_nome}] ⏭ {nome_conta} já processada', 'warn')
+                            if dashboard:
+                                try: dashboard.close()
+                                except: pass
+                            conta_global += 1
+                            continue
+
+                        # Fecha popups
+                        try: dashboard.evaluate("""() => { let els = document.querySelectorAll('*'); for (let el of els) { if (el.innerText && el.innerText.trim() === 'Entendi') { el.click(); return true; } } }""")
+                        except: pass
+
+                        # Cria campanha
+                        dashboard.click('.operation-create-btn', timeout=12000)
+                        time.sleep(6)
+
+                        # Seleciona objetivo
+                        obj_map = {
+                            'VIDEO_VIEWS': ['Visualizações de vídeo', 'Video Views'],
+                            'REACH':       ['Alcance', 'Reach'],
+                            'TRAFFIC':     ['Tráfego', 'Traffic'],
+                            'ENGAGEMENT':  ['Engajamento', 'Engagement'],
+                        }
+                        obj_labels = obj_map.get(objetivo, ['Visualizações de vídeo', 'Video Views'])
+                        selecionado = False
+                        deadline = time.time() + 15
+                        while time.time() < deadline and not selecionado:
+                            for lbl in obj_labels:
+                                clicou = dashboard.evaluate(f"""() => {{ let els = document.querySelectorAll('*'); for (let e of els) {{ if (e.innerText && e.innerText.trim() === '{lbl}') {{ e.click(); return true; }} }} return false; }}""")
+                                if clicou: selecionado = True; break
+                            if not selecionado: time.sleep(0.5)
+                        if not selecionado: raise Exception('Objetivo não encontrado')
+
+                        time.sleep(3)
+                        clicar_ks(dashboard, 'Continuar')
+                        time.sleep(4)
+
+                        # Configura data início se definida
+                        if data_inicio:
+                            try:
+                                # Tenta preencher campo de data/hora de início
+                                dashboard.evaluate(f"""
+                                    () => {{
+                                        let inputs = document.querySelectorAll('input[type=datetime-local], input[placeholder*="data"], input[placeholder*="date"], input[placeholder*="start"]');
+                                        for (let inp of inputs) {{
+                                            inp.value = '{data_inicio}';
+                                            inp.dispatchEvent(new Event('input', {{bubbles:true}}));
+                                            inp.dispatchEvent(new Event('change', {{bubbles:true}}));
+                                            return true;
+                                        }}
+                                        return false;
+                                    }}
+                                """)
+                                adicionar_log(f'[{bc_nome}] Data início configurada: {data_inicio}', 'info')
+                            except: pass
+
+                        # Configura data fim se definida
+                        if data_fim:
+                            try:
+                                dashboard.evaluate(f"""
+                                    () => {{
+                                        let inputs = document.querySelectorAll('input[type=datetime-local], input[placeholder*="end"], input[placeholder*="fim"]');
+                                        for (let inp of inputs) {{
+                                            inp.value = '{data_fim}';
+                                            inp.dispatchEvent(new Event('input', {{bubbles:true}}));
+                                            inp.dispatchEvent(new Event('change', {{bubbles:true}}));
+                                            return true;
+                                        }}
+                                        return false;
+                                    }}
+                                """)
+                                adicionar_log(f'[{bc_nome}] Data fim configurada: {data_fim}', 'info')
+                            except: pass
+
+                        clicar_ks(dashboard, 'Continuar')
+                        time.sleep(4)
+
+                        try: dashboard.evaluate("""() => { let els = document.querySelectorAll('*'); for (let el of els) { if (el.innerText && el.innerText.trim() === 'Entendi') { el.click(); return true; } } }""")
+                        except: pass
+                        time.sleep(3)
+
+                        # Cria múltiplos conjuntos se necessário
+                        for conjunto_idx in range(num_conjuntos):
+                            if conjunto_idx > 0:
+                                # Clica em "Adicionar conjunto de anúncios"
+                                try:
+                                    clicou = dashboard.evaluate("""
+                                        () => {
+                                            let els = document.querySelectorAll('*');
+                                            for (let el of els) {
+                                                let txt = (el.innerText||'').trim();
+                                                if ((txt.includes('Add Ad Group') || txt.includes('Adicionar conjunto')) && el.offsetParent !== null) {
+                                                    el.click(); return true;
+                                                }
+                                            }
+                                            return false;
+                                        }
+                                    """)
+                                    if clicou:
+                                        time.sleep(3)
+                                        adicionar_log(f'[{bc_nome}] Conjunto {conjunto_idx+1}/{num_conjuntos} adicionado', 'info')
+                                except: pass
+
+                        # Configura criativo
+                        dashboard.evaluate("""() => { let els = document.querySelectorAll('*'); for (let el of els) { if (el.innerText && el.innerText.trim() === 'Postagem autorizada' && el.offsetParent !== null) { let r = el.getBoundingClientRect(); if (r.width < 300 && r.height < 60) { el.click(); return true; } } } return false; }""")
+                        time.sleep(5)
+
+                        input_el = None
+                        for sel in ["textarea", "input[type='text']"]:
+                            try:
+                                el = dashboard.locator(sel).first
+                                if el.is_visible(): input_el = el; break
+                            except: pass
+                        if not input_el: raise Exception('Campo código não encontrado')
+
+                        input_el.click(force=True); time.sleep(1)
+                        input_el.fill(post_code);   time.sleep(2)
+
+                        clicou = clicar_ks(dashboard, 'Pesquisar')
+                        if not clicou: clicar_ks(dashboard, 'Search')
+                        time.sleep(8)
+                        clicar_ks(dashboard, 'Confirmar')
+                        time.sleep(12)
+                        dashboard.reload(wait_until='domcontentloaded', timeout=30000)
+                        time.sleep(8)
+
+                        for t in range(3):
+                            clicou = dashboard.evaluate("""() => { function b(r) { let els = r.querySelectorAll('*'); for (let el of els) { let txt = (el.innerText||'').trim(); if ((txt.includes('Vídeos e imagens')||txt.includes('Videos e imagens')) && el.tagName.includes('KS-BUTTON')) { el.click(); return el.tagName; } if (el.shadowRoot) { let x=b(el.shadowRoot); if(x) return x; } } return false; } return b(document); }""")
+                            if clicou: break
+                            time.sleep(5)
+                        if not clicou: raise Exception('Vídeos e imagens não encontrado')
+                        time.sleep(5)
+
+                        dashboard.evaluate("""() => { let el = document.querySelector('div.item'); if (el) { el.click(); return true; } return false; }""")
+                        time.sleep(3)
+                        dashboard.evaluate("""() => { let btns = document.querySelectorAll('button'); for (let btn of btns) { let txt = (btn.innerText||'').trim(); if (txt==='Confirm'||txt==='Confirmar') { btn.click(); return true; } } return false; }""")
+                        time.sleep(5)
+                        clicar_ks(dashboard, 'Continuar')
+                        time.sleep(5)
+                        clicar_ks(dashboard, 'Publicar')
+
+                        try: dashboard.wait_for_url('**/manage/campaign**', timeout=30000)
+                        except: pass
+                        try: dashboard.wait_for_load_state('domcontentloaded', timeout=30000)
+                        except: pass
+                        time.sleep(5)
+
+                        for t in range(12):
+                            toggle = dashboard.evaluate("""() => { let el = document.querySelector('.vi-switch.is-checked'); if (el) { let r = el.getBoundingClientRect(); if (r.width > 0) return true; } return false; }""")
+                            if toggle: break
+                            time.sleep(5)
+
+                        for t in range(3):
+                            dashboard.evaluate("""() => { let el = document.querySelector('.vi-switch.is-checked'); if (el) { el.click(); return true; } return false; }""")
+                            time.sleep(3)
+                            ainda = dashboard.evaluate("""() => { return document.querySelector('.vi-switch.is-checked') ? true : false; }""")
+                            if not ainda: break
+
+                        adicionar_log(f'[{bc_nome}] ✅ Conta {conta_global} finalizada! ({num_conjuntos} conjunto(s))', 'success')
+                        adicionar_relatorio(bc_id, bc_nome, nome_conta, 'campanha', 'sucesso')
+
+                    except Exception as e:
+                        adicionar_log(f'[{bc_nome}] ❌ Erro conta {conta_global}: {str(e)[:60]}', 'error')
+                        adicionar_relatorio(bc_id, bc_nome, nome_conta, 'campanha', 'falha', str(e)[:100])
+                    finally:
+                        if dashboard:
+                            try: dashboard.close()
+                            except: pass
+                        try: lista_page.bring_to_front()
+                        except: pass
+                        time.sleep(4)
+                    conta_global += 1
+
+        adicionar_log(f'[{bc_nome}] ✅ Processo de campanhas concluído!', 'success')
+    except Exception as e:
+        adicionar_log(f'[{bc_nome}] ❌ Erro fatal: {str(e)[:100]}', 'error')
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    import webbrowser
+    print('=' * 50)
+    print('  TikAuto — v5-full')
+    print('  Acessar: http://localhost:5000')
+    print('=' * 50)
+    webbrowser.open('http://localhost:5000')
+    app.run(debug=False, port=5000, threaded=True)
