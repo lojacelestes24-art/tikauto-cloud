@@ -17,6 +17,7 @@ logs_pend    = []
 rels_pend    = []
 stop_flags   = {}
 log_offsets  = {}        # {bc_id: int}
+_log_lock    = threading.Lock()
 
 LOG_DIR    = os.path.join(os.path.dirname(__file__), 'logs')
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), 'uploads')
@@ -75,7 +76,8 @@ def monitorar_worker(bc_id, key):
 
 # ─── Log helpers ──────────────────────────────────────────────────────────────
 def adicionar_log(msg, tipo='info'):
-    logs_pend.append({'msg': msg, 'type': tipo})
+    with _log_lock:
+        logs_pend.append({'msg': msg, 'type': tipo})
 
 def salvar_log_arquivo(bc_nome, tipo, conta, status, detalhe=''):
     horario = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
@@ -155,8 +157,9 @@ def api_stats():
 @app.route('/api/status')
 def status():
     global logs_pend, rels_pend
-    logs = logs_pend.copy(); logs_pend = []
-    rels = rels_pend.copy(); rels_pend = []
+    with _log_lock:
+        logs = logs_pend.copy(); logs_pend = []
+        rels = rels_pend.copy(); rels_pend = []
     running = [k for k,p in processos.items() if p.poll() is None]
     totais = {}
     for fname in os.listdir(LOG_DIR):
@@ -1203,9 +1206,40 @@ def api_criar_campanhas(bc_id):
     conv_event    = d.get('conv_event', 'PURCHASE')
     adv_ids_sel   = d.get('advertiser_ids', [])   # lista selecionada; vazio = todas
 
-    adv_ids = adv_ids_sel if adv_ids_sel else bc.get('advertiser_ids', [])
+    # adv_ids_sel vazia = usar todas do BC; busca do servidor se não tiver em cache
+    if adv_ids_sel:
+        adv_ids = adv_ids_sel
+    else:
+        adv_ids = bc.get('advertiser_ids', [])
+        # Se ainda vazio, tenta buscar ao vivo da API TikTok
+        if not adv_ids:
+            adicionar_log(f'[{bc.get("nome",bc_id)}] 🔄 Buscando contas do BC na API...', 'info')
+            try:
+                r_adv = req.get(f"{TIKTOK_API}/oauth2/advertiser/get/",
+                                headers={'Access-Token': token},
+                                params={'app_id': TIKTOK_APP_ID, 'secret': TIKTOK_APP_SECRET},
+                                timeout=15)
+                r_data = r_adv.json()
+                if r_data.get('code') == 0:
+                    adv_ids = [str(a['advertiser_id']) for a in r_data['data'].get('list', [])]
+                    # Salva pra próxima vez
+                    bc['advertiser_ids'] = adv_ids
+                    bcs_list2 = get_bcs_api()
+                    for b2 in bcs_list2:
+                        if b2['id'] == bc_id:
+                            b2['advertiser_ids'] = adv_ids
+                            break
+                    save_bcs_api(bcs_list2)
+                    adicionar_log(f'[{bc.get("nome",bc_id)}] ✅ {len(adv_ids)} conta(s) encontrada(s)', 'success')
+                else:
+                    adicionar_log(f'[{bc.get("nome",bc_id)}] ❌ Erro API: {r_data.get("message","")}', 'error')
+            except Exception as e:
+                adicionar_log(f'[{bc.get("nome",bc_id)}] ❌ Erro ao buscar contas: {str(e)[:80]}', 'error')
+
     if not adv_ids:
-        return jsonify({'ok': False, 'error': 'Nenhuma conta encontrada. Sincronize o BC primeiro.'})
+        return jsonify({'ok': False, 'error': 'Nenhuma conta encontrada. Vá em Business Centers → Sincronizar.'})
+
+    adicionar_log(f'[{bc.get("nome",bc_id)}] 🚀 Iniciando criação para {len(adv_ids)} conta(s)...', 'info')
 
     # Mapa objetivo → objective_type da API
     obj_map = {
