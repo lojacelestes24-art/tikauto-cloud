@@ -1,1275 +1,1158 @@
 <!DOCTYPE html>
-<html lang="pt">
+<html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TikAuto — Campaign Intelligence</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<title>TikAuto — Automation Suite</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500;600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-:root{
-  --bg:       #06060a;
-  --bg1:      #0c0c14;
-  --bg2:      #111120;
-  --bg3:      #181828;
-  --bg4:      #1e1e32;
-  --line:     #1f1f35;
-  --line2:    #2a2a45;
-  --text:     #e4e4f0;
-  --text2:    #8888aa;
-  --text3:    #44445a;
-  --red:      #ff3358;
-  --red2:     #cc2244;
-  --cyan:     #22eedd;
-  --green:    #22dd88;
-  --yellow:   #ffcc33;
-  --purple:   #aa55ff;
-  --orange:   #ff8833;
-  --sans:     'Syne', sans-serif;
-  --mono:     'JetBrains Mono', monospace;
-  --r:        10px;
+:root {
+  --bg:       #05050a;
+  --s1:       #0c0c14;
+  --s2:       #111119;
+  --s3:       #181825;
+  --border:   #1c1c2e;
+  --border2:  #252538;
+  --tt-red:   #fe2c55;
+  --tt-cyan:  #25f4ee;
+  --tt-black: #010101;
+  --green:    #12e89a;
+  --orange:   #ff9500;
+  --yellow:   #ffd60a;
+  --purple:   #bf5af2;
+  --text:     #eeeef5;
+  --text2:    #5e5e7e;
+  --text3:    #2d2d48;
+  --font:     'Syne', sans-serif;
+  --mono:     'IBM Plex Mono', monospace;
+  --glow-r:   0 0 30px rgba(254,44,85,0.2), 0 0 60px rgba(254,44,85,0.06);
+  --glow-c:   0 0 30px rgba(37,244,238,0.2), 0 0 60px rgba(37,244,238,0.06);
+  --glow-g:   0 0 30px rgba(18,232,154,0.2);
 }
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:var(--font); min-height:100vh; overflow-x:hidden; }
+body::after { content:''; position:fixed; inset:0; background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E"); pointer-events:none; z-index:9997; opacity:0.4; }
+body::before { content:''; position:fixed; top:-200px; left:50px; width:600px; height:400px; background:radial-gradient(ellipse, rgba(254,44,85,0.04) 0%, transparent 70%); pointer-events:none; z-index:0; }
 
-*{margin:0;padding:0;box-sizing:border-box}
-html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.5;overflow:hidden}
+.sidebar { position:fixed; left:0; top:0; width:240px; height:100vh; background:var(--s1); border-right:1px solid var(--border); display:flex; flex-direction:column; z-index:100; }
+.sidebar::after { content:''; position:absolute; top:0; right:-1px; width:1px; height:100%; background:linear-gradient(180deg,transparent 0%,var(--tt-cyan) 20%,var(--tt-red) 80%,transparent 100%); opacity:0.25; }
 
-.shell{display:flex;height:100vh;width:100vw}
-.sidebar{width:220px;min-width:220px;background:var(--bg1);border-right:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden}
-.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
-.topbar{height:52px;background:var(--bg1);border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 20px;gap:10px;flex-shrink:0}
-.content{flex:1;overflow-y:auto;padding:28px}
+.logo { padding:26px 22px 22px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:13px; }
+.tt-logo { position:relative; width:40px; height:40px; display:flex; align-items:center; justify-content:center; }
+.tt-logo svg { position:absolute; }
+.logo-text-wrap { flex:1; }
+.logo-name { font-size:18px; font-weight:800; letter-spacing:-0.8px; background:linear-gradient(135deg,var(--tt-cyan) 0%,#fff 50%,var(--tt-red) 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; line-height:1; }
+.logo-version { font-size:9px; color:var(--text2); font-family:var(--mono); letter-spacing:2px; text-transform:uppercase; margin-top:3px; }
 
-.logo{padding:22px 20px 18px;border-bottom:1px solid var(--line)}
-.logo-mark{display:flex;align-items:center;gap:10px}
-.logo-icon{width:32px;height:32px;background:var(--red);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.logo-icon svg{color:#fff}
-.logo-name{font-size:17px;font-weight:800;letter-spacing:-.5px}
-.logo-name span{color:var(--red)}
-.logo-tag{font-size:10px;color:var(--text3);font-family:var(--mono);margin-top:1px}
+.nav { padding:18px 12px; flex:1; overflow-y:auto; }
+.nav-label { font-size:9px; font-family:var(--mono); color:var(--text3); letter-spacing:2.5px; text-transform:uppercase; padding:0 10px; margin:14px 0 6px; }
+.nav-item { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:9px; cursor:pointer; color:var(--text2); font-size:14px; font-weight:600; transition:all 0.16s; margin-bottom:2px; border:1px solid transparent; position:relative; letter-spacing:-0.2px; }
+.nav-item:hover { background:var(--s2); color:var(--text); border-color:var(--border); }
+.nav-item.active { background:rgba(254,44,85,0.07); color:var(--tt-red); border-color:rgba(254,44,85,0.18); }
+.nav-item.active::before { content:''; position:absolute; left:0; top:25%; bottom:25%; width:2px; background:linear-gradient(180deg,var(--tt-cyan),var(--tt-red)); border-radius:0 2px 2px 0; box-shadow:0 0 10px var(--tt-red); }
+.nav-icon { width:18px; height:18px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.nav-badge { margin-left:auto; font-size:9px; font-family:var(--mono); background:rgba(254,44,85,0.12); color:var(--tt-red); border:1px solid rgba(254,44,85,0.2); padding:2px 7px; border-radius:20px; }
 
-.nav-group{padding:18px 12px 6px;font-size:9px;font-weight:700;letter-spacing:2.5px;color:var(--text3);text-transform:uppercase}
-.nav-item{display:flex;align-items:center;gap:9px;padding:8px 14px;margin:1px 8px;border-radius:8px;cursor:pointer;color:var(--text2);font-size:13px;font-weight:500;transition:all .15s;user-select:none;position:relative}
-.nav-item:hover{background:var(--bg3);color:var(--text)}
-.nav-item.active{background:rgba(255,51,88,.1);color:var(--red)}
-.nav-item.active::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);width:3px;height:18px;background:var(--red);border-radius:0 3px 3px 0}
-.nav-item svg{width:15px;height:15px;flex-shrink:0;opacity:.6}
-.nav-item.active svg{opacity:1}
-.nav-badge{margin-left:auto;background:var(--red);color:#fff;font-size:9px;font-family:var(--mono);padding:2px 6px;border-radius:20px;font-weight:700}
+.sidebar-footer { padding:14px 18px; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:8px; }
+.conn-status { display:flex; align-items:center; gap:8px; font-size:12px; font-family:var(--mono); color:var(--text2); }
+.conn-dot { width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 10px var(--green); animation:pulse 2.5s ease infinite; }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.8)} }
+.plan-badge { display:flex; align-items:center; justify-content:space-between; background:var(--s2); border:1px solid var(--border2); border-radius:8px; padding:8px 12px; }
+.plan-name { font-size:11px; font-weight:700; font-family:var(--mono); background:linear-gradient(90deg,var(--tt-cyan),var(--tt-red)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+.plan-tier { font-size:9px; font-family:var(--mono); color:var(--text2); text-transform:uppercase; letter-spacing:1px; }
 
-.sidebar-footer{margin-top:auto;padding:14px 16px;border-top:1px solid var(--line)}
-.status-row{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text3)}
-.pulse{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 2s ease-in-out infinite;flex-shrink:0}
-@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(.85)}}
+.main { margin-left:240px; padding:30px 36px; min-height:100vh; position:relative; z-index:1; }
+.page { display:none; }
+.page.active { display:block; animation:fadeUp 0.22s cubic-bezier(0.16,1,0.3,1); }
+@keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
 
-.tb-breadcrumb{font-family:var(--mono);font-size:11px;color:var(--text3);flex:1}
-.tb-breadcrumb span{color:var(--text2)}
-.tb-pill{display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--line2);border-radius:20px;padding:5px 12px;font-size:11px;font-family:var(--mono);cursor:default}
-.tb-pill strong{color:var(--cyan)}
-.tb-pill.running{border-color:rgba(255,51,88,.3);background:rgba(255,51,88,.08)}
-.tb-pill.running strong{color:var(--red)}
+.page-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:32px; }
+.page-title { font-size:26px; font-weight:800; letter-spacing:-1px; line-height:1; margin-bottom:8px; }
+.page-sub { font-size:13px; color:var(--text2); font-family:var(--mono); letter-spacing:0.3px; }
 
-.page{display:none;animation:fadein .2s ease}
-.page.active{display:block}
-@keyframes fadein{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.kpi-strip { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:28px; }
+.kpi { border:1px solid var(--border); border-radius:16px; padding:22px 24px 18px 26px; position:relative; overflow:hidden; transition:transform 0.2s,border-color 0.2s,box-shadow 0.2s; cursor:default; }
+.kpi:hover { transform:translateY(-3px); }
+.kpi.red    { background:linear-gradient(140deg,#0e0a0d 55%,rgba(254,44,85,0.07) 100%); }
+.kpi.cyan   { background:linear-gradient(140deg,#080e0e 55%,rgba(37,244,238,0.07) 100%); }
+.kpi.green  { background:linear-gradient(140deg,#080e0b 55%,rgba(18,232,154,0.07) 100%); }
+.kpi.purple { background:linear-gradient(140deg,#0c0a0f 55%,rgba(191,90,242,0.07) 100%); }
+.kpi::before { content:''; position:absolute; left:0; top:18%; bottom:18%; width:3px; border-radius:0 3px 3px 0; }
+.kpi.red::before    { background:linear-gradient(180deg,transparent,var(--tt-red),transparent); box-shadow:0 0 14px rgba(254,44,85,0.6); }
+.kpi.cyan::before   { background:linear-gradient(180deg,transparent,var(--tt-cyan),transparent); box-shadow:0 0 14px rgba(37,244,238,0.6); }
+.kpi.green::before  { background:linear-gradient(180deg,transparent,var(--green),transparent); box-shadow:0 0 14px rgba(18,232,154,0.6); }
+.kpi.purple::before { background:linear-gradient(180deg,transparent,var(--purple),transparent); box-shadow:0 0 14px rgba(191,90,242,0.6); }
+.kpi:hover.red    { border-color:rgba(254,44,85,0.35);  box-shadow:var(--glow-r); }
+.kpi:hover.cyan   { border-color:rgba(37,244,238,0.35); box-shadow:var(--glow-c); }
+.kpi:hover.green  { border-color:rgba(18,232,154,0.35); box-shadow:var(--glow-g); }
+.kpi:hover.purple { border-color:rgba(191,90,242,0.35); box-shadow:0 0 30px rgba(191,90,242,0.15); }
+.kpi-icon { position:absolute; top:18px; right:18px; width:34px; height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; }
+.kpi.red   .kpi-icon { background:rgba(254,44,85,0.1);  border:1px solid rgba(254,44,85,0.22); }
+.kpi.cyan  .kpi-icon { background:rgba(37,244,238,0.1); border:1px solid rgba(37,244,238,0.22); }
+.kpi.green .kpi-icon { background:rgba(18,232,154,0.1); border:1px solid rgba(18,232,154,0.22); }
+.kpi.purple .kpi-icon{ background:rgba(191,90,242,0.1); border:1px solid rgba(191,90,242,0.22); }
+.kpi-label { font-size:11px; font-family:var(--mono); color:var(--text2); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:10px; }
+.kpi-val { font-family:'Plus Jakarta Sans',sans-serif; font-size:48px; font-weight:200; letter-spacing:-4px; line-height:1; margin-bottom:10px; }
+.kpi.red .kpi-val    { color:var(--tt-red);  text-shadow:0 2px 40px rgba(254,44,85,0.45); }
+.kpi.cyan .kpi-val   { color:var(--tt-cyan); text-shadow:0 2px 40px rgba(37,244,238,0.45); }
+.kpi.green .kpi-val  { color:var(--green);   text-shadow:0 2px 40px rgba(18,232,154,0.45); }
+.kpi.purple .kpi-val { color:var(--purple);  text-shadow:0 2px 40px rgba(191,90,242,0.45); }
+.kpi-delta { font-size:11px; font-family:var(--mono); color:var(--text2); display:flex; align-items:center; gap:5px; }
+.kpi-spark { position:absolute; bottom:14px; right:16px; display:flex; align-items:flex-end; gap:2px; height:18px; opacity:0.3; }
+.spark-bar { width:3px; border-radius:2px 2px 0 0; }
+.kpi.red   .spark-bar { background:var(--tt-red); }
+.kpi.cyan  .spark-bar { background:var(--tt-cyan); }
+.kpi.green .spark-bar { background:var(--green); }
+.kpi.purple .spark-bar { background:var(--purple); }
 
-.ph{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:28px;gap:16px}
-.ph-left h1{font-size:24px;font-weight:800;letter-spacing:-.5px}
-.ph-left p{font-size:12px;color:var(--text3);font-family:var(--mono);margin-top:3px}
-.ph-actions{display:flex;gap:8px;align-items:center}
+.section { margin-bottom:28px; }
+.section-head { font-size:11px; font-weight:600; font-family:var(--mono); color:var(--text2); text-transform:uppercase; letter-spacing:2px; margin-bottom:14px; display:flex; align-items:center; gap:10px; }
+.section-head::after { content:''; flex:1; height:1px; background:linear-gradient(90deg,var(--border2),transparent); }
 
-.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:24px}
-.kpi{background:var(--bg1);border:1px solid var(--line);border-radius:var(--r);padding:20px;position:relative;overflow:hidden;transition:border-color .15s}
-.kpi:hover{border-color:var(--line2)}
-.kpi::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px}
-.kpi.red::after{background:var(--red)}
-.kpi.cyan::after{background:var(--cyan)}
-.kpi.green::after{background:var(--green)}
-.kpi.yellow::after{background:var(--yellow)}
-.kpi.purple::after{background:var(--purple)}
-.kpi-n{font-size:30px;font-weight:800;font-family:var(--mono);letter-spacing:-1.5px;line-height:1}
-.kpi-n.red{color:var(--red)}
-.kpi-n.cyan{color:var(--cyan)}
-.kpi-n.green{color:var(--green)}
-.kpi-n.yellow{color:var(--yellow)}
-.kpi-n.purple{color:var(--purple)}
-.kpi-l{font-size:11px;color:var(--text3);margin-top:6px;text-transform:uppercase;letter-spacing:.8px;font-weight:600}
+.bc-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; }
+.bc-card { background:var(--s1); border:1px solid var(--border); border-radius:13px; padding:18px 20px; transition:all 0.2s; cursor:pointer; position:relative; overflow:hidden; }
+.bc-card::before { content:''; position:absolute; inset:0; background:linear-gradient(135deg,rgba(254,44,85,0.03) 0%,rgba(37,244,238,0.03) 100%); opacity:0; transition:opacity 0.2s; }
+.bc-card:hover { border-color:rgba(254,44,85,0.25); transform:translateY(-1px); box-shadow:0 8px 30px rgba(0,0,0,0.3); }
+.bc-card:hover::before { opacity:1; }
+.bc-card-top { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:16px; }
+.bc-name { font-size:15px; font-weight:700; color:var(--text); letter-spacing:-0.3px; }
+.bc-pid  { font-size:11px; color:var(--text2); font-family:var(--mono); margin-top:3px; }
+.bc-status { font-size:10px; padding:4px 10px; border-radius:20px; font-family:var(--mono); font-weight:500; letter-spacing:0.3px; white-space:nowrap; display:flex; align-items:center; gap:5px; }
+.bc-status.idle    { background:rgba(94,94,126,0.1);  color:var(--text2); border:1px solid var(--border2); }
+.bc-status.running { background:rgba(37,244,238,0.08); color:var(--tt-cyan); border:1px solid rgba(37,244,238,0.2); animation:statusGlow 2s infinite; }
+.bc-status.done    { background:rgba(18,232,154,0.08); color:var(--green); border:1px solid rgba(18,232,154,0.2); }
+.bc-status.error   { background:rgba(254,44,85,0.08);  color:var(--tt-red); border:1px solid rgba(254,44,85,0.2); }
+@keyframes statusGlow { 0%,100%{box-shadow:none} 50%{box-shadow:0 0 12px rgba(37,244,238,0.25)} }
+.bc-progress { height:3px; background:var(--border); border-radius:2px; overflow:hidden; margin-bottom:14px; }
+.bc-progress-fill { height:100%; border-radius:2px; background:linear-gradient(90deg,var(--tt-cyan),var(--tt-red)); box-shadow:0 0 8px rgba(254,44,85,0.4); transition:width 0.6s cubic-bezier(0.16,1,0.3,1); }
+.bc-metrics { display:flex; gap:16px; }
+.bc-metric { font-size:12px; color:var(--text2); font-family:var(--mono); display:flex; align-items:center; gap:4px; }
+.bc-metric strong { color:var(--text); font-weight:600; }
 
-.card{background:var(--bg1);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
-.card-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line);background:var(--bg2)}
-.card-title{font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2)}
-.card-body{padding:18px}
+.log-box { background:var(--s1); border:1px solid var(--border); border-radius:13px; overflow:hidden; }
+.log-top { padding:12px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; background:var(--s2); }
+.log-title-area { display:flex; align-items:center; gap:8px; font-size:11px; font-weight:600; font-family:var(--mono); color:var(--text2); text-transform:uppercase; letter-spacing:1px; }
+.live-dot { width:6px; height:6px; border-radius:50%; background:var(--tt-red); box-shadow:0 0 8px var(--tt-red); animation:pulse 2s infinite; }
+.log-actions { display:flex; gap:6px; }
+.log-btn { font-size:9px; font-family:var(--mono); color:var(--text3); background:none; border:1px solid var(--border); padding:3px 8px; border-radius:5px; cursor:pointer; transition:all 0.15s; }
+.log-btn:hover { color:var(--tt-red); border-color:rgba(254,44,85,0.3); }
+.log-body { height:240px; overflow-y:auto; padding:10px; font-family:var(--mono); font-size:12px; background:#030306; line-height:1.6; }
+.log-body::-webkit-scrollbar { width:3px; }
+.log-body::-webkit-scrollbar-thumb { background:var(--border2); border-radius:2px; }
+.log-line { padding:2px 8px; border-radius:4px; margin-bottom:1px; display:flex; gap:12px; animation:slideIn 0.18s ease; }
+@keyframes slideIn { from{opacity:0;transform:translateX(-6px)} to{opacity:1;transform:translateX(0)} }
+.log-line:hover { background:rgba(255,255,255,0.025); }
+.log-time { color:var(--text3); min-width:44px; font-size:11px; }
+.log-msg  { flex:1; }
+.log-line.success .log-msg { color:var(--green); }
+.log-line.error   .log-msg { color:var(--tt-red); }
+.log-line.info    .log-msg { color:var(--tt-cyan); }
+.log-line.warn    .log-msg { color:var(--orange); }
+.log-line.default .log-msg { color:var(--text2); }
 
-.tbl{width:100%;border-collapse:collapse}
-.tbl th{padding:9px 14px;text-align:left;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--line);background:var(--bg2);white-space:nowrap}
-.tbl td{padding:11px 14px;border-bottom:1px solid var(--line);font-size:13px;vertical-align:middle}
-.tbl tr:last-child td{border-bottom:none}
-.tbl tbody tr:hover td{background:rgba(255,255,255,.015)}
-.mono{font-family:var(--mono);font-size:11px;color:var(--cyan)}
+.btn { padding:10px 20px; border-radius:9px; border:none; cursor:pointer; font-family:var(--font); font-size:13px; font-weight:700; transition:all 0.16s; display:inline-flex; align-items:center; gap:8px; letter-spacing:-0.3px; position:relative; overflow:hidden; }
+.btn::after { content:''; position:absolute; inset:0; background:rgba(255,255,255,0); transition:background 0.15s; }
+.btn:hover::after { background:rgba(255,255,255,0.05); }
+.btn-primary { background:linear-gradient(135deg,var(--tt-red) 0%,#c91f42 100%); color:#fff; box-shadow:0 4px 20px rgba(254,44,85,0.3),inset 0 1px 0 rgba(255,255,255,0.1); }
+.btn-primary:hover { transform:translateY(-1px); box-shadow:0 8px 28px rgba(254,44,85,0.45); }
+.btn-teal { background:linear-gradient(135deg,var(--tt-cyan) 0%,#18c8c4 100%); color:#000; box-shadow:0 4px 20px rgba(37,244,238,0.25),inset 0 1px 0 rgba(255,255,255,0.2); }
+.btn-teal:hover { transform:translateY(-1px); box-shadow:0 8px 28px rgba(37,244,238,0.4); }
+.btn-success { background:linear-gradient(135deg,var(--green) 0%,#0ab877 100%); color:#000; box-shadow:0 4px 20px rgba(18,232,154,0.25); }
+.btn-success:hover { transform:translateY(-1px); box-shadow:0 8px 28px rgba(18,232,154,0.4); }
+.btn-stop { background:rgba(254,44,85,0.08); color:var(--tt-red); border:1px solid rgba(254,44,85,0.25); }
+.btn-stop:hover { background:rgba(254,44,85,0.15); border-color:var(--tt-red); }
+.btn-ghost { background:var(--s2); color:var(--text2); border:1px solid var(--border2); }
+.btn-ghost:hover { border-color:var(--tt-cyan); color:var(--tt-cyan); }
+.btn-danger { background:rgba(254,44,85,0.08); color:var(--tt-red); border:1px solid rgba(254,44,85,0.2); }
+.btn-danger:hover { background:rgba(254,44,85,0.15); }
+.btn-sm { padding:6px 13px; font-size:11px; }
+.btn-xs { padding:4px 9px; font-size:10px; }
 
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 16px;border-radius:8px;border:1px solid transparent;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap;font-family:var(--sans)}
-.btn-primary{background:var(--red);color:#fff;border-color:var(--red)}
-.btn-primary:hover{background:var(--red2)}
-.btn-ghost{background:transparent;color:var(--text2);border-color:var(--line2)}
-.btn-ghost:hover{background:var(--bg3);color:var(--text)}
-.btn-danger{background:transparent;color:var(--red);border-color:rgba(255,51,88,.3)}
-.btn-danger:hover{background:rgba(255,51,88,.1)}
-.btn-warn{background:rgba(255,204,51,.12);color:var(--yellow);border-color:rgba(255,204,51,.3)}
-.btn-warn:hover{background:rgba(255,204,51,.2)}
-.btn-sm{padding:5px 10px;font-size:11px}
-.btn-xs{padding:3px 8px;font-size:10px}
-.btn:disabled{opacity:.35;cursor:not-allowed}
+.form-group { margin-bottom:16px; }
+.form-label { font-size:11px; font-family:var(--mono); color:var(--text2); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:7px; display:block; font-weight:500; }
+.form-input { width:100%; background:var(--s2); border:1px solid var(--border2); border-radius:9px; padding:11px 14px; color:var(--text); font-family:var(--mono); font-size:12px; outline:none; transition:border-color 0.2s,box-shadow 0.2s; }
+.form-input:focus { border-color:rgba(254,44,85,0.4); box-shadow:0 0 0 3px rgba(254,44,85,0.07); }
+.form-input::placeholder { color:var(--text3); }
+select.form-input { appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235e5e7e' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 12px center; padding-right:32px; }
 
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
-.fgroup{margin-bottom:14px}
-.fgroup:last-child{margin-bottom:0}
-label{display:block;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:5px;letter-spacing:.3px;text-transform:uppercase}
-input[type=text],input[type=number],input[type=url],select,textarea{
-  width:100%;background:var(--bg2);border:1px solid var(--line2);border-radius:8px;
-  padding:9px 12px;color:var(--text);font-size:13px;font-family:var(--sans);outline:none;transition:border .15s}
-input:focus,select:focus,textarea:focus{border-color:rgba(255,51,88,.5);box-shadow:0 0 0 3px rgba(255,51,88,.08)}
-select option{background:var(--bg2)}
-textarea{resize:vertical;min-height:80px}
-.hint{font-size:11px;color:var(--text3);margin-top:4px;line-height:1.4}
-.input-row{display:flex;gap:8px}
-.input-row input,.input-row select{flex:1}
-.range-row{display:flex;align-items:center;gap:10px}
-input[type=range]{flex:1;accent-color:var(--red);height:4px}
-.range-val{font-family:var(--mono);font-size:13px;color:var(--cyan);min-width:28px;text-align:right}
+.table-wrap { background:var(--s1); border:1px solid var(--border); border-radius:13px; overflow:hidden; }
+table { width:100%; border-collapse:collapse; }
+thead tr { background:var(--s2); border-bottom:1px solid var(--border); }
+th { padding:12px 16px; text-align:left; font-size:10px; font-family:var(--mono); color:var(--text2); text-transform:uppercase; letter-spacing:1.5px; font-weight:500; }
+td { padding:13px 16px; font-size:13px; border-bottom:1px solid rgba(28,28,46,0.7); }
+tr:last-child td { border-bottom:none; }
+tr:hover td { background:rgba(254,44,85,0.02); }
+.badge { font-size:9px; padding:3px 9px; border-radius:20px; font-family:var(--mono); font-weight:500; }
+.badge-ok   { background:rgba(18,232,154,0.1); color:var(--green); border:1px solid rgba(18,232,154,0.2); }
+.badge-fail { background:rgba(254,44,85,0.1);  color:var(--tt-red); border:1px solid rgba(254,44,85,0.2); }
+.badge-info { background:rgba(37,244,238,0.1); color:var(--tt-cyan); border:1px solid rgba(37,244,238,0.2); }
 
-.toggle-group{display:flex;flex-wrap:wrap;gap:6px}
-.tgl{padding:5px 12px;border-radius:20px;border:1px solid var(--line2);background:transparent;
-     color:var(--text2);font-size:12px;cursor:pointer;transition:all .15s;font-family:var(--sans);font-weight:500}
-.tgl.on{background:rgba(255,51,88,.15);color:var(--red);border-color:rgba(255,51,88,.4)}
+.modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.8); z-index:9000; align-items:center; justify-content:center; backdrop-filter:blur(8px); }
+.modal-overlay.open { display:flex; }
+.modal { background:var(--s1); border:1px solid var(--border2); border-radius:18px; padding:30px; width:520px; max-width:90vw; animation:modalPop 0.22s cubic-bezier(0.16,1,0.3,1); box-shadow:0 32px 80px rgba(0,0,0,0.7),0 0 0 1px rgba(254,44,85,0.06); position:relative; overflow:hidden; }
+.modal::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:linear-gradient(90deg,var(--tt-cyan),var(--tt-red)); }
+@keyframes modalPop { from{opacity:0;transform:scale(0.94) translateY(12px)} to{opacity:1;transform:scale(1) translateY(0)} }
+.modal-title { font-size:18px; font-weight:800; letter-spacing:-0.6px; margin-bottom:24px; }
+.modal-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:24px; }
 
-.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;font-size:10px;font-weight:700;font-family:var(--mono);white-space:nowrap}
-.badge-ok{background:rgba(34,221,136,.1);color:var(--green);border:1px solid rgba(34,221,136,.2)}
-.badge-err{background:rgba(255,51,88,.1);color:var(--red);border:1px solid rgba(255,51,88,.2)}
-.badge-run{background:rgba(34,238,221,.1);color:var(--cyan);border:1px solid rgba(34,238,221,.2)}
-.badge-idle{background:var(--bg3);color:var(--text3);border:1px solid var(--line)}
-.badge-warn{background:rgba(255,204,51,.1);color:var(--yellow);border:1px solid rgba(255,204,51,.2)}
+.action-bar { display:flex; gap:12px; align-items:center; padding:14px 18px; background:var(--s1); border:1px solid var(--border); border-radius:13px; margin-bottom:24px; position:relative; overflow:hidden; }
+.action-bar::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,rgba(254,44,85,0.4),rgba(37,244,238,0.4),transparent); }
+.action-title { font-size:14px; font-weight:700; color:var(--text); flex:1; letter-spacing:-0.3px; }
+.count-chip { font-family:var(--mono); font-size:12px; color:var(--tt-cyan); background:rgba(37,244,238,0.07); border:1px solid rgba(37,244,238,0.18); padding:4px 11px; border-radius:20px; }
 
-.log-box{background:#04040a;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
-.log-head{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--line);background:var(--bg2)}
-.log-ttl{font-family:var(--mono);font-size:10px;color:var(--text3);flex:1}
-.live{width:6px;height:6px;border-radius:50%;background:var(--red);animation:blink 1.2s ease-in-out infinite;flex-shrink:0}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
-.log-body{overflow-y:auto;padding:10px 12px;font-family:var(--mono);font-size:11px;line-height:1.8}
-.log-body::-webkit-scrollbar{width:3px}
-.log-body::-webkit-scrollbar-thumb{background:var(--line2);border-radius:3px}
-.ll{display:flex;gap:10px}
-.lt{color:var(--text3);flex-shrink:0;font-size:10px}
-.lm{font-size:11px}
-.lm.info{color:var(--text2)}
-.lm.success{color:var(--green)}
-.lm.error{color:var(--red)}
-.lm.warn{color:var(--yellow)}
+.cfg-card { background:var(--s1); border:1px solid var(--border); border-radius:13px; padding:22px; margin-bottom:14px; }
+.cfg-title { font-size:15px; font-weight:700; letter-spacing:-0.3px; margin-bottom:4px; }
+.cfg-desc { font-size:11px; color:var(--text2); font-family:var(--mono); margin-bottom:18px; letter-spacing:0.3px; }
+.range-row { display:flex; align-items:center; gap:14px; }
+input[type=range] { flex:1; accent-color:var(--tt-red); height:4px; }
+.range-val { font-family:var(--mono); font-size:22px; font-weight:700; color:var(--tt-red); min-width:40px; text-align:right; text-shadow:0 0 16px rgba(254,44,85,0.4); }
 
-.prog-wrap{background:var(--bg3);border-radius:3px;height:4px;overflow:hidden}
-.prog-fill{height:100%;border-radius:3px;transition:width .4s ease;background:var(--red)}
-.prog-fill.green{background:var(--green)}
+.grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+.grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
 
-.bc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
-.bc-card{background:var(--bg1);border:1px solid var(--line);border-radius:var(--r);padding:18px;transition:border-color .15s;position:relative}
-.bc-card:hover{border-color:var(--line2)}
-.bc-card.connected{border-color:rgba(34,221,136,.2)}
-.bc-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
-.bc-name{font-size:15px;font-weight:700;letter-spacing:-.3px}
-.bc-meta{font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px}
-.bc-actions{display:flex;gap:6px;margin-top:14px;flex-wrap:wrap}
+.empty { padding:52px 24px; text-align:center; }
+.empty-icon { font-size:40px; margin-bottom:14px; opacity:0.3; }
+.empty-text { font-size:13px; color:var(--text2); font-family:var(--mono); }
 
-.camp-row{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--line);transition:background .1s}
-.camp-row:last-child{border-bottom:none}
-.camp-row:hover{background:rgba(255,255,255,.015)}
-.camp-info{flex:1;min-width:0}
-.camp-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.camp-acc{font-size:11px;color:var(--text3);font-family:var(--mono)}
-.camp-meta{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.health-row { display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid rgba(28,28,46,0.7); }
+.health-row:last-child { border:none; }
+.health-label { font-size:12px; font-family:var(--mono); color:var(--text2); min-width:150px; }
+.health-track { flex:1; height:4px; background:var(--border2); border-radius:2px; overflow:hidden; }
+.health-fill { height:100%; border-radius:2px; transition:width 0.8s cubic-bezier(0.16,1,0.3,1); }
+.health-fill.red   { background:linear-gradient(90deg,var(--tt-red),#ff6b8a); }
+.health-fill.cyan  { background:linear-gradient(90deg,var(--tt-cyan),#7ffffc); }
+.health-fill.green { background:linear-gradient(90deg,var(--green),#5ff5c0); }
+.health-pct { font-size:11px; font-family:var(--mono); font-weight:600; min-width:36px; text-align:right; }
 
-.spark-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
-.spark-card{background:var(--bg1);border:1px solid var(--line);border-radius:var(--r);padding:16px;transition:border-color .15s}
-.spark-card:hover{border-color:var(--line2)}
-.spark-type{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px}
-.spark-type.post{background:rgba(255,51,88,.1);color:var(--red)}
-.spark-type.link{background:rgba(34,238,221,.1);color:var(--cyan)}
-.spark-label{font-size:14px;font-weight:700;margin-bottom:4px}
-.spark-val{font-family:var(--mono);font-size:10px;color:var(--text3);word-break:break-all;line-height:1.4}
-.spark-actions{display:flex;gap:6px;margin-top:12px}
+@keyframes spin { to{transform:rotate(360deg)} }
+.spinning { display:inline-block; animation:spin 1s linear infinite; }
 
-.adv-list{max-height:180px;overflow-y:auto;border:1px solid var(--line2);border-radius:8px}
-.adv-item{display:flex;align-items:center;gap:8px;padding:7px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--line)}
-.adv-item:last-child{border-bottom:none}
-.adv-item:hover{background:var(--bg3)}
-.adv-item input{accent-color:var(--red);cursor:pointer;flex-shrink:0}
-.adv-item-name{flex:1;font-weight:600}
-.adv-item-id{font-family:var(--mono);font-size:10px;color:var(--text3)}
+.toast-container { position:fixed; bottom:24px; right:24px; z-index:9999; display:flex; flex-direction:column; gap:8px; pointer-events:none; }
 
-.sw{position:relative;width:42px;height:22px;cursor:pointer;flex-shrink:0}
-.sw-track{position:absolute;inset:0;background:var(--bg3);border:1px solid var(--line2);border-radius:11px;transition:.2s}
-.sw-thumb{position:absolute;left:3px;top:3px;width:14px;height:14px;background:var(--text3);border-radius:50%;transition:.2s}
-.sw.on .sw-track{background:rgba(255,51,88,.25);border-color:rgba(255,51,88,.5)}
-.sw.on .sw-thumb{background:var(--red);left:23px}
+.sysrow { display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid rgba(28,28,46,0.6); font-size:12px; font-family:var(--mono); color:var(--text2); }
+.sysrow:last-child { border:none; }
+.sysrow span { font-weight:600; }
+.sysrow .v-cyan  { color:var(--tt-cyan); }
+.sysrow .v-green { color:var(--green); }
+.sysrow .v-red   { color:var(--tt-red); }
 
-.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(6px);z-index:100;align-items:center;justify-content:center}
-.overlay.open{display:flex}
-.modal{background:var(--bg1);border:1px solid var(--line2);border-radius:14px;padding:28px;width:540px;max-width:95vw;max-height:90vh;overflow-y:auto}
-.modal h2{font-size:17px;font-weight:800;margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid var(--line)}
-.modal-foot{display:flex;gap:8px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}
+hr.div { border:none; border-top:1px solid var(--border); margin:20px 0; }
+.tip { background:rgba(254,44,85,0.05); border:1px solid rgba(254,44,85,0.15); border-radius:8px; padding:10px 14px; font-size:10px; font-family:var(--mono); color:rgba(254,44,85,0.7); line-height:1.6; margin-top:10px; }
+.tip.cyan { background:rgba(37,244,238,0.04); border-color:rgba(37,244,238,0.15); color:rgba(37,244,238,0.6); }
+.tip.green { background:rgba(18,232,154,0.04); border-color:rgba(18,232,154,0.15); color:rgba(18,232,154,0.6); }
 
-.empty{padding:48px 24px;text-align:center;color:var(--text3)}
-.empty-icon{font-size:40px;margin-bottom:12px;display:block}
-.empty-text{font-size:13px;color:var(--text3)}
+/* Tabs inside page */
+.tab-bar { display:flex; gap:4px; margin-bottom:20px; background:var(--s1); border:1px solid var(--border); border-radius:10px; padding:4px; }
+.tab-btn { padding:8px 16px; border-radius:7px; font-size:12px; font-weight:600; font-family:var(--mono); color:var(--text2); cursor:pointer; border:none; background:none; transition:all 0.15s; }
+.tab-btn.active { background:rgba(254,44,85,0.1); color:var(--tt-red); }
+.tab-btn:hover:not(.active) { color:var(--text); background:var(--s2); }
+.tab-pane { display:none; }
+.tab-pane.active { display:block; }
 
-@keyframes spin{to{transform:rotate(360deg)}}
-.spin{animation:spin .7s linear infinite}
+/* Spark post pill */
+.spark-pill { display:flex; align-items:center; gap:10px; background:var(--s2); border:1px solid var(--border2); border-radius:9px; padding:10px 14px; margin-bottom:8px; transition:border-color 0.15s; }
+.spark-pill:hover { border-color:rgba(37,244,238,0.25); }
+.spark-pill-label { flex:1; font-size:12px; font-family:var(--mono); color:var(--text); }
+.spark-pill-id { font-size:10px; color:var(--tt-cyan); font-family:var(--mono); }
 
-::-webkit-scrollbar{width:4px;height:4px}
-::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:var(--line2);border-radius:4px}
+/* Date/time inputs */
+input[type=datetime-local].form-input,
+input[type=date].form-input { color-scheme:dark; }
 
-.slabel{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text3);margin:20px 0 10px}
-.slabel:first-child{margin-top:0}
-.divider{height:1px;background:var(--line);margin:16px 0}
-
-/* ── Overview progress bar ── */
-.ov-prog{background:var(--bg2);border:1px solid var(--line);border-radius:var(--r);padding:14px 18px;margin-bottom:16px}
-.ov-prog-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
-.ov-prog-label{font-size:11px;font-weight:700;color:var(--text2)}
-.ov-prog-count{font-family:var(--mono);font-size:11px;color:var(--cyan)}
-
-@media(max-width:768px){
-  .sidebar{display:none}
-  .grid2,.grid3{grid-template-columns:1fr}
-  .kpi-grid{grid-template-columns:repeat(2,1fr)}
-}
+/* Toggle switch */
+.toggle-row { display:flex; align-items:center; justify-content:space-between; padding:10px 0; }
+.toggle-label { font-size:12px; font-family:var(--mono); color:var(--text2); }
+.toggle { position:relative; width:36px; height:20px; }
+.toggle input { opacity:0; width:0; height:0; }
+.toggle-slider { position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0; background:var(--border2); transition:0.3s; border-radius:20px; }
+.toggle-slider:before { position:absolute; content:''; height:14px; width:14px; left:3px; bottom:3px; background:var(--text2); transition:0.3s; border-radius:50%; }
+.toggle input:checked + .toggle-slider { background:var(--tt-red); }
+.toggle input:checked + .toggle-slider:before { transform:translateX(16px); background:#fff; }
 </style>
 </head>
 <body>
 
-{% if oauth_success %}<script>sessionStorage.setItem('os','{{ advertiser_count }}')</script>{% endif %}
-{% if oauth_error %}<script>sessionStorage.setItem('oe','{{ oauth_error }}')</script>{% endif %}
-
-<div class="shell">
-
-<nav class="sidebar">
+<!-- ── SIDEBAR ── -->
+<div class="sidebar">
   <div class="logo">
-    <div class="logo-mark">
-      <div class="logo-icon">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-      </div>
-      <div>
-        <div class="logo-name">Tik<span>Auto</span></div>
-        <div class="logo-tag">// v4-saas-pro</div>
-      </div>
+    <div class="tt-logo">
+      <svg width="38" height="38" viewBox="0 0 38 38" style="position:absolute;top:-2px;left:-2px;filter:drop-shadow(0 0 4px rgba(37,244,238,0.8))">
+        <path d="M27.5 8.8a6.7 6.7 0 0 1-5.22-5.87V2.5h-4.77v18.9a4 4 0 0 1-3.99 3.46 4 4 0 0 1-4-4 4 4 0 0 1 4-4c.38 0 .74.06 1.09.14V12.4a8.76 8.76 0 0 0-1.09-.07 8.77 8.77 0 0 0-8.77 8.77 8.77 8.77 0 0 0 8.77 8.77 8.77 8.77 0 0 0 8.75-8.77V10.7a11.28 11.28 0 0 0 6.6 2.1V8.08a6.72 6.72 0 0 1-1.37-.28z" fill="rgba(37,244,238,0.7)"/>
+      </svg>
+      <svg width="38" height="38" viewBox="0 0 38 38" style="position:absolute;top:2px;left:2px;filter:drop-shadow(0 0 4px rgba(254,44,85,0.8))">
+        <path d="M27.5 8.8a6.7 6.7 0 0 1-5.22-5.87V2.5h-4.77v18.9a4 4 0 0 1-3.99 3.46 4 4 0 0 1-4-4 4 4 0 0 1 4-4c.38 0 .74.06 1.09.14V12.4a8.76 8.76 0 0 0-1.09-.07 8.77 8.77 0 0 0-8.77 8.77 8.77 8.77 0 0 0 8.77 8.77 8.77 8.77 0 0 0 8.75-8.77V10.7a11.28 11.28 0 0 0 6.6 2.1V8.08a6.72 6.72 0 0 1-1.37-.28z" fill="rgba(254,44,85,0.7)"/>
+      </svg>
+      <svg width="38" height="38" viewBox="0 0 38 38" style="position:relative;z-index:1">
+        <path d="M27.5 8.8a6.7 6.7 0 0 1-5.22-5.87V2.5h-4.77v18.9a4 4 0 0 1-3.99 3.46 4 4 0 0 1-4-4 4 4 0 0 1 4-4c.38 0 .74.06 1.09.14V12.4a8.76 8.76 0 0 0-1.09-.07 8.77 8.77 0 0 0-8.77 8.77 8.77 8.77 0 0 0 8.77 8.77 8.77 8.77 0 0 0 8.75-8.77V10.7a11.28 11.28 0 0 0 6.6 2.1V8.08a6.72 6.72 0 0 1-1.37-.28z" fill="white"/>
+      </svg>
+    </div>
+    <div class="logo-text-wrap">
+      <div class="logo-name">TikAuto</div>
+      <div class="logo-version">v5.0 · Enterprise</div>
     </div>
   </div>
 
-  <div class="nav-group">Overview</div>
-  <div class="nav-item active" onclick="goto('dashboard',this)">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-    Dashboard
-  </div>
-  <div class="nav-item" onclick="goto('bcs',this)">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
-    Business Centers
-    <span class="nav-badge" id="n-bc">0</span>
-  </div>
-  <div class="nav-item" onclick="goto('overview',this)">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-    Campanhas Ativas
-    <span class="nav-badge" id="n-camps" style="background:var(--yellow);color:#000">0</span>
-  </div>
+  <nav class="nav">
+    <div class="nav-label">Principal</div>
+    <div class="nav-item active" onclick="showPage('dashboard')">
+      <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg></span>
+      Dashboard
+    </div>
+    <div class="nav-item" onclick="showPage('bcs')">
+      <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
+      Business Centers
+      <span class="nav-badge" id="nav-bc-count">0</span>
+    </div>
 
-  <div class="nav-group">Automação</div>
-  <div class="nav-item" onclick="goto('campanhas',this)">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-    Criar Campanhas
-  </div>
-  <div class="nav-item" onclick="goto('sparks',this)">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-    Spark Posts
-    <span class="nav-badge" id="n-sparks" style="background:var(--purple)">0</span>
-  </div>
+    <div class="nav-label" style="margin-top:14px">Automação</div>
+    <div class="nav-item" onclick="showPage('contas')">
+      <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="23" y1="11" x2="17" y2="11"/><line x1="20" y1="8" x2="20" y2="14"/></svg></span>
+      Criar Contas
+    </div>
+    <div class="nav-item" onclick="showPage('campanhas')">
+      <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
+      Campanhas
+    </div>
+    <div class="nav-item" onclick="showPage('posts')">
+      <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 10l-4 4l6 6l4-16l-18 7l4 2l2 6l3-4"/></svg></span>
+      Spark Posts
+    </div>
 
-  <div class="nav-group">Sistema</div>
-  <div class="nav-item" onclick="goto('jobs',this)">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-    Histórico Jobs
-  </div>
+    <div class="nav-label" style="margin-top:14px">Sistema</div>
+    <div class="nav-item" onclick="showPage('relatorios')">
+      <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
+      Relatórios
+    </div>
+    <div class="nav-item" onclick="showPage('config')">
+      <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+      Configurações
+    </div>
+  </nav>
 
   <div class="sidebar-footer">
-    <div class="status-row">
-      <div class="pulse" id="api-pulse"></div>
-      <span id="api-txt">API conectada</span>
+    <div class="plan-badge">
+      <span class="plan-name">PRO</span>
+      <span class="plan-tier">Plano Ativo</span>
+    </div>
+    <div class="conn-status">
+      <div class="conn-dot"></div>
+      ADS Power · conectado
     </div>
   </div>
-</nav>
+</div>
 
+<!-- ── MAIN ── -->
 <div class="main">
-  <div class="topbar">
-    <div class="tb-breadcrumb">TikAuto / <span id="tb-page">Dashboard</span></div>
-    <div class="tb-pill">BCs <strong id="tp-bcs">0</strong></div>
-    <div class="tb-pill">Contas <strong id="tp-contas">0</strong></div>
-    <div class="tb-pill running" id="tp-run-pill" style="display:none">
-      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-      <strong id="tp-run">0</strong> rodando
-    </div>
-  </div>
 
-  <div class="content">
-
-    <!-- DASHBOARD -->
-    <div class="page active" id="page-dashboard">
-      <div class="ph">
-        <div class="ph-left"><h1>Dashboard</h1><p>// visão geral em tempo real</p></div>
-        <div class="ph-actions"><button class="btn btn-ghost btn-sm" onclick="loadStats()">↻ Refresh</button></div>
+  <!-- ── DASHBOARD ── -->
+  <div class="page active" id="page-dashboard">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Dashboard</div>
+        <div class="page-sub">// visão geral · monitoramento em tempo real</div>
       </div>
-      <div class="kpi-grid">
-        <div class="kpi cyan"><div class="kpi-n cyan" id="d-bcs">0</div><div class="kpi-l">Business Centers</div></div>
-        <div class="kpi green"><div class="kpi-n green" id="d-conn">0</div><div class="kpi-l">BCs Conectados</div></div>
-        <div class="kpi cyan"><div class="kpi-n cyan" id="d-contas">0</div><div class="kpi-l">Total Contas</div></div>
-        <div class="kpi purple"><div class="kpi-n purple" id="d-sparks">0</div><div class="kpi-l">Spark Posts</div></div>
-        <div class="kpi green"><div class="kpi-n green" id="d-suc">0</div><div class="kpi-l">Camps Criadas</div></div>
-        <div class="kpi red"><div class="kpi-n red" id="d-fal">0</div><div class="kpi-l">Camps com Falha</div></div>
-      </div>
-      <div class="slabel">Jobs recentes</div>
-      <div class="card" id="dash-jobs-card">
-        <div class="empty"><span class="empty-icon">⚡</span><div class="empty-text">Nenhum job ainda</div></div>
-      </div>
-    </div>
-
-    <!-- BUSINESS CENTERS -->
-    <div class="page" id="page-bcs">
-      <div class="ph">
-        <div class="ph-left"><h1>Business Centers</h1><p>// contas, OAuth e contas de anúncio</p></div>
-        <div class="ph-actions"><button class="btn btn-primary" onclick="openM('m-add-bc')">+ Adicionar BC</button></div>
-      </div>
-      <div class="bc-grid" id="bc-grid">
-        <div class="empty" style="grid-column:1/-1"><span class="empty-icon">🏢</span><div class="empty-text">Nenhum BC cadastrado</div></div>
-      </div>
-    </div>
-
-    <!-- CAMPANHAS ATIVAS -->
-    <div class="page" id="page-overview">
-      <div class="ph">
-        <div class="ph-left"><h1>Campanhas Ativas</h1><p>// overview e controle por conta</p></div>
-        <div class="ph-actions">
-          <select id="ov-bc-sel" class="btn btn-ghost" style="font-size:13px;padding:6px 12px" onchange="loadOverview()">
-            <option value="">— Selecione BC —</option>
-          </select>
-          <button class="btn btn-warn" onclick="disableAll()">⏹ Desativar Todas</button>
-          <button class="btn btn-ghost btn-sm" id="ov-refresh-btn" onclick="loadOverview()">↻ Refresh</button>
+      <div style="display:flex;gap:10px;align-items:center">
+        <div style="font-size:10px;font-family:var(--mono);color:var(--text2);background:var(--s2);border:1px solid var(--border);padding:8px 14px;border-radius:8px">
+          Atualização <span style="color:var(--tt-cyan)">ao vivo · 3s</span>
         </div>
-      </div>
-
-      <!-- Barra de progresso do scan -->
-      <div id="ov-prog-wrap" style="display:none" class="ov-prog">
-        <div class="ov-prog-top">
-          <span class="ov-prog-label">
-            <span class="live" style="display:inline-block;margin-right:6px;vertical-align:middle"></span>
-            Buscando campanhas...
-          </span>
-          <span class="ov-prog-count" id="ov-prog-count">0 / 0</span>
-        </div>
-        <div class="prog-wrap"><div class="prog-fill" id="ov-prog-bar" style="width:0%"></div></div>
-        <div style="font-size:10px;color:var(--text3);font-family:var(--mono);margin-top:6px" id="ov-prog-last"></div>
-      </div>
-
-      <!-- Log do disable-all -->
-      <div id="ov-log-wrap" style="display:none;margin-bottom:16px">
-        <div class="log-box">
-          <div class="log-head"><div class="live" id="ov-live"></div><div class="log-ttl">Desativando campanhas...</div></div>
-          <div class="log-body" id="ov-log" style="height:140px"></div>
-        </div>
-      </div>
-
-      <div class="card" id="ov-card">
-        <div class="empty"><span class="empty-icon">📡</span><div class="empty-text">Selecione um BC para carregar as campanhas</div></div>
-      </div>
-    </div>
-
-    <!-- CRIAR CAMPANHAS -->
-    <div class="page" id="page-campanhas">
-      <div class="ph">
-        <div class="ph-left"><h1>Criar Campanhas</h1><p>// disparo em massa via API TikTok</p></div>
-      </div>
-      <div class="grid2" style="align-items:start">
-        <div style="display:flex;flex-direction:column;gap:14px">
-          <div class="card">
-            <div class="card-head"><div class="card-title">Campanha</div></div>
-            <div class="card-body" style="display:flex;flex-direction:column;gap:14px">
-              <div class="fgroup" style="margin-bottom:0">
-                <label>Business Center</label>
-                <select id="c-bc" onchange="onCampBC()"><option value="">— Selecione —</option></select>
-              </div>
-              <div class="fgroup" style="margin-bottom:0">
-                <label>Contas <span id="c-sel-count" style="color:var(--cyan);font-family:var(--mono)">0 selecionadas</span></label>
-                <div style="display:flex;gap:6px;margin-bottom:6px">
-                  <button class="btn btn-ghost btn-xs" onclick="selAll(true)">Todas</button>
-                  <button class="btn btn-ghost btn-xs" onclick="selAll(false)">Nenhuma</button>
-                </div>
-                <div class="adv-list" id="c-adv-list">
-                  <div class="adv-item" style="color:var(--text3)">Selecione um BC primeiro</div>
-                </div>
-              </div>
-              <div class="fgroup" style="margin-bottom:0">
-                <label>Nome da Campanha</label>
-                <input type="text" id="c-nome" placeholder="Black Friday 2026">
-              </div>
-              <div class="fgroup" style="margin-bottom:0">
-                <label>Objetivo</label>
-                <div class="toggle-group" id="c-obj">
-                  <button class="tgl on" data-val="VIDEO_VIEWS" onclick="selObj(this)">📹 Views</button>
-                  <button class="tgl" data-val="CONVERSIONS" onclick="selObj(this)">💰 Conversões</button>
-                  <button class="tgl" data-val="TRAFFIC" onclick="selObj(this)">🔗 Tráfego</button>
-                  <button class="tgl" data-val="REACH" onclick="selObj(this)">📡 Alcance</button>
-                  <button class="tgl" data-val="ENGAGEMENT" onclick="selObj(this)">❤️ Engajamento</button>
-                  <button class="tgl" data-val="LEAD_GENERATION" onclick="selObj(this)">📋 Leads</button>
-                  <button class="tgl" data-val="APP_PROMOTION" onclick="selObj(this)">📱 App</button>
-                </div>
-              </div>
-              <div class="grid2">
-                <div class="fgroup" style="margin-bottom:0">
-                  <label>Orçamento diário (€)</label>
-                  <input type="number" id="c-budget" value="20" min="1">
-                </div>
-                <div class="fgroup" style="margin-bottom:0">
-                  <label>Conjuntos <span id="c-ag-v" class="range-val">1</span></label>
-                  <div class="range-row" style="margin-top:6px">
-                    <input type="range" min="1" max="10" value="1" id="c-adgroups" oninput="document.getElementById('c-ag-v').innerText=this.value">
-                  </div>
-                </div>
-              </div>
-              <div class="fgroup" style="margin-bottom:0">
-                <label>CBO — Otimização de Orçamento</label>
-                <div style="display:flex;align-items:center;gap:10px;margin-top:6px">
-                  <div class="sw" id="sw-cbo" onclick="toggleSW('sw-cbo','_cbo')">
-                    <div class="sw-track"></div><div class="sw-thumb"></div>
-                  </div>
-                  <span id="sw-cbo-lbl" style="font-size:12px;color:var(--text3)">Desativado</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="card-head"><div class="card-title">Segmentação</div></div>
-            <div class="card-body" style="display:flex;flex-direction:column;gap:14px">
-              <div class="fgroup" style="margin-bottom:0">
-                <label>Países</label>
-                <div class="toggle-group" id="c-paises">
-                  <button class="tgl on" data-val="BR" onclick="this.classList.toggle('on')">🇧🇷 BR</button>
-                  <button class="tgl" data-val="PT" onclick="this.classList.toggle('on')">🇵🇹 PT</button>
-                  <button class="tgl" data-val="US" onclick="this.classList.toggle('on')">🇺🇸 US</button>
-                  <button class="tgl" data-val="MX" onclick="this.classList.toggle('on')">🇲🇽 MX</button>
-                  <button class="tgl" data-val="AR" onclick="this.classList.toggle('on')">🇦🇷 AR</button>
-                  <button class="tgl" data-val="CO" onclick="this.classList.toggle('on')">🇨🇴 CO</button>
-                  <button class="tgl" data-val="FR" onclick="this.classList.toggle('on')">🇫🇷 FR</button>
-                  <button class="tgl" data-val="DE" onclick="this.classList.toggle('on')">🇩🇪 DE</button>
-                  <button class="tgl" data-val="ES" onclick="this.classList.toggle('on')">🇪🇸 ES</button>
-                  <button class="tgl" data-val="AE" onclick="this.classList.toggle('on')">🇦🇪 AE</button>
-                </div>
-              </div>
-              <div class="grid2">
-                <div class="fgroup" style="margin-bottom:0">
-                  <label>Idade mín.</label>
-                  <select id="c-amin"><option value="13">13</option><option value="18" selected>18</option><option value="25">25</option><option value="35">35</option><option value="45">45</option></select>
-                </div>
-                <div class="fgroup" style="margin-bottom:0">
-                  <label>Idade máx.</label>
-                  <select id="c-amax"><option value="24">24</option><option value="34">34</option><option value="44" selected>44</option><option value="54">54</option><option value="100">55+</option></select>
-                </div>
-              </div>
-              <div class="fgroup" style="margin-bottom:0">
-                <label>Gênero</label>
-                <div class="toggle-group" id="c-gender">
-                  <button class="tgl on" data-val="GENDER_UNLIMITED" onclick="selGender(this)">Todos</button>
-                  <button class="tgl" data-val="GENDER_MALE" onclick="selGender(this)">Masculino</button>
-                  <button class="tgl" data-val="GENDER_FEMALE" onclick="selGender(this)">Feminino</button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="card-head"><div class="card-title">Criativo Spark Ad</div></div>
-            <div class="card-body" style="display:flex;flex-direction:column;gap:14px">
-              <div class="fgroup" style="margin-bottom:0">
-                <label>Link ou Item ID do Post</label>
-                <input type="text" id="c-item" placeholder="https://tiktok.com/@user/video/... ou ID numérico">
-                <div class="hint">Cole o link do post TikTok — o ID é extraído automaticamente</div>
-              </div>
-              <div class="fgroup" style="margin-bottom:0">
-                <label>Auth Code <span style="color:var(--text3);font-size:10px">(alternativo)</span></label>
-                <input type="text" id="c-authcode" placeholder="#gpKdPiXg...">
-              </div>
-              <div class="fgroup" style="margin-bottom:0">
-                <label>Identity ID</label>
-                <input type="text" id="c-identity" placeholder="Deixe vazio para detectar automaticamente">
-              </div>
-              <div class="grid2">
-                <div class="fgroup" style="margin-bottom:0">
-                  <label>Tipo de Post</label>
-                  <select id="c-ptype">
-                    <option value="SINGLE_VIDEO">Vídeo</option>
-                    <option value="CAROUSEL_ADS">Carrossel / Foto</option>
-                  </select>
-                </div>
-                <div class="fgroup" style="margin-bottom:0">
-                  <label>Call to Action</label>
-                  <select id="c-cta">
-                    <option value="LEARN_MORE">Saiba Mais</option>
-                    <option value="SHOP_NOW">Compre Agora</option>
-                    <option value="SIGN_UP">Cadastre-se</option>
-                    <option value="DOWNLOAD">Baixar</option>
-                    <option value="BOOK_NOW">Reserve</option>
-                    <option value="CONTACT_US">Contato</option>
-                    <option value="WATCH_MORE">Assistir</option>
-                    <option value="ORDER_NOW">Pedir</option>
-                    <option value="VISIT_STORE">Visitar</option>
-                  </select>
-                </div>
-              </div>
-              <div class="fgroup" style="margin-bottom:0">
-                <label>URL de Destino</label>
-                <input type="url" id="c-url" placeholder="https://seusite.com/produto">
-              </div>
-              <div class="fgroup" style="margin-bottom:0">
-                <label>Nome do Ad Group</label>
-                <input type="text" id="c-agname" placeholder="AdGroup Principal">
-              </div>
-            </div>
-          </div>
-
-          <div class="card" id="pixel-card">
-            <div class="card-head"><div class="card-title">Pixel (Conversões)</div></div>
-            <div class="card-body" style="display:flex;flex-direction:column;gap:10px">
-              <div class="input-row">
-                <input type="text" id="c-pixel" placeholder="Pixel ID">
-                <button class="btn btn-ghost btn-sm" onclick="loadPixels()">Buscar</button>
-              </div>
-              <select id="c-pixel-sel" style="display:none" onchange="document.getElementById('c-pixel').value=this.value">
-                <option value="">— Selecione pixel —</option>
-              </select>
-              <select id="c-optevt">
-                <option value="PURCHASE">Purchase</option>
-                <option value="ADD_TO_CART">Add to Cart</option>
-                <option value="INITIATE_CHECKOUT">Initiate Checkout</option>
-                <option value="COMPLETE_REGISTRATION">Complete Registration</option>
-                <option value="PAGE_VIEW">Page View</option>
-              </select>
-            </div>
-          </div>
-
-          <div style="display:flex;gap:8px">
-            <button class="btn btn-primary" id="btn-camp" onclick="startCamp()" style="flex:1">▶ Disparar Campanhas</button>
-            <button class="btn btn-danger" id="btn-stop-camp" onclick="stopJob('camp')" style="display:none">■ Parar</button>
-          </div>
-        </div>
-
-        <div style="display:flex;flex-direction:column;gap:14px">
-          <div id="c-prog-wrap" style="display:none">
-            <div class="card" style="padding:14px 16px">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-                <span style="font-size:12px;font-weight:700;color:var(--text2)">PROGRESSO</span>
-                <span id="c-prog-txt" style="font-family:var(--mono);font-size:12px;color:var(--cyan)">0 / 0</span>
-              </div>
-              <div class="prog-wrap"><div class="prog-fill green" id="c-prog-bar" style="width:0%"></div></div>
-              <div style="display:flex;gap:16px;font-size:12px;margin-top:8px;font-family:var(--mono)">
-                <span style="color:var(--green)">✓ <span id="c-suc">0</span></span>
-                <span style="color:var(--red)">✗ <span id="c-fal">0</span></span>
-              </div>
-            </div>
-          </div>
-          <div class="slabel" style="margin-top:0">Log ao vivo</div>
-          <div class="log-box" style="flex:1">
-            <div class="log-head"><div class="live" id="c-live" style="background:var(--text3)"></div><div class="log-ttl">terminal · criar-campanhas</div></div>
-            <div class="log-body" id="log-camp" style="height:520px">
-              <div class="ll"><span class="lm info">// aguardando início</span></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- SPARK POSTS -->
-    <div class="page" id="page-sparks">
-      <div class="ph">
-        <div class="ph-left"><h1>Spark Posts</h1><p>// posts e links salvos para reutilizar</p></div>
-        <div class="ph-actions"><button class="btn btn-primary" onclick="openM('m-add-spark')">+ Adicionar</button></div>
-      </div>
-      <div class="spark-grid" id="spark-grid">
-        <div class="empty" style="grid-column:1/-1"><span class="empty-icon">⚡</span><div class="empty-text">Nenhum Spark Post salvo ainda</div></div>
-      </div>
-    </div>
-
-    <!-- HISTÓRICO JOBS -->
-    <div class="page" id="page-jobs">
-      <div class="ph">
-        <div class="ph-left"><h1>Histórico de Jobs</h1><p>// todos os processos executados</p></div>
-        <div class="ph-actions"><button class="btn btn-ghost btn-sm" onclick="loadJobs()">↻ Refresh</button></div>
-      </div>
-      <div class="card">
-        <table class="tbl">
-          <thead><tr><th>Job ID</th><th>Tipo</th><th>Objetivo</th><th>Status</th><th>OK</th><th>Falha</th><th>Data</th><th></th></tr></thead>
-          <tbody id="jobs-tbody">
-            <tr><td colspan="8"><div class="empty"><span class="empty-icon">📋</span><div class="empty-text">Nenhum job ainda</div></div></td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-  </div>
-</div>
-</div>
-
-<!-- MODALS -->
-<div class="overlay" id="m-add-bc">
-  <div class="modal">
-    <h2>Adicionar Business Center</h2>
-    <div class="fgroup">
-      <label>Nome do BC</label>
-      <input type="text" id="bc-nome" placeholder="ex: CANDES CAROLINE">
-    </div>
-    <div class="fgroup">
-      <label>Advertiser IDs (um por linha)</label>
-      <textarea id="bc-advids" rows="5" placeholder="7609183845245267985&#10;7609183845245267986"></textarea>
-      <div class="hint">Você pode sincronizar automaticamente após conectar via OAuth.</div>
-    </div>
-    <div class="modal-foot">
-      <button class="btn btn-ghost" onclick="closeM('m-add-bc')">Cancelar</button>
-      <button class="btn btn-primary" onclick="addBC()">Criar BC</button>
-    </div>
-  </div>
-</div>
-
-<div class="overlay" id="m-oauth">
-  <div class="modal">
-    <h2>Conectar via OAuth TikTok</h2>
-    <p style="color:var(--text2);font-size:13px;margin-bottom:16px;line-height:1.6">Clique em <b>Abrir TikTok</b>, autorize o app e copie o <code style="background:var(--bg3);padding:2px 6px;border-radius:4px;font-family:var(--mono);font-size:11px">auth_code</code> da URL de retorno.</p>
-    <button class="btn btn-primary" onclick="abrirOAuth()" style="width:100%;justify-content:center;margin-bottom:14px">🔐 Abrir Autorização TikTok</button>
-    <div class="fgroup">
-      <label>Auth Code (da URL de retorno)</label>
-      <input type="text" id="oauth-code" placeholder="Cole o auth_code aqui...">
-    </div>
-    <div class="modal-foot">
-      <button class="btn btn-ghost" onclick="closeM('m-oauth')">Cancelar</button>
-      <button class="btn btn-primary" onclick="trocarToken()">Salvar Token</button>
-    </div>
-  </div>
-</div>
-
-<div class="overlay" id="m-add-spark">
-  <div class="modal">
-    <h2>Adicionar Spark Post / Link</h2>
-    <div class="fgroup">
-      <label>Tipo</label>
-      <div class="toggle-group" id="spark-type-tgl">
-        <button class="tgl on" data-val="post" onclick="selSparkType(this)">📹 Spark Post</button>
-        <button class="tgl" data-val="link" onclick="selSparkType(this)">🔗 Link</button>
-      </div>
-    </div>
-    <div class="fgroup">
-      <label>Nome / Descrição</label>
-      <input type="text" id="sp-label" placeholder="ex: Vídeo Produto A — Jan 2026">
-    </div>
-    <div class="fgroup">
-      <label id="sp-val-lbl">Link ou Item ID do Post</label>
-      <input type="text" id="sp-val" placeholder="https://tiktok.com/@user/video/...">
-      <div class="hint" id="sp-val-hint">Cole o link do vídeo TikTok — o Item ID será extraído automaticamente.</div>
-    </div>
-    <div class="fgroup" id="sp-identity-wrap">
-      <label>Identity ID <span style="color:var(--text3)">(opcional)</span></label>
-      <input type="text" id="sp-identity" placeholder="7610242939238973441">
-    </div>
-    <div class="fgroup">
-      <label>Business Center <span style="color:var(--text3)">(opcional)</span></label>
-      <select id="sp-bc"><option value="">— Nenhum —</option></select>
-    </div>
-    <div class="modal-foot">
-      <button class="btn btn-ghost" onclick="closeM('m-add-spark')">Cancelar</button>
-      <button class="btn btn-primary" onclick="addSpark()">Salvar</button>
-    </div>
-  </div>
-</div>
-
-<div class="overlay" id="m-job-log">
-  <div class="modal" style="width:660px">
-    <h2>Log — <span id="m-job-id" style="font-family:var(--mono);color:var(--cyan)"></span></h2>
-    <div class="log-box">
-      <div class="log-head"><div class="log-ttl">log completo</div></div>
-      <div class="log-body" id="m-log-body" style="height:380px"></div>
-    </div>
-    <div class="modal-foot">
-      <button class="btn btn-ghost" onclick="closeM('m-job-log')">Fechar</button>
-    </div>
-  </div>
-</div>
-
-<script>
-// ── STATE ──────────────────────────────────────────────────────────────
-let bcs = [], sparks = [];
-let oauthBcId = null;
-let campJobId = null, campPoll = null, campOffset = 0;
-let ovJobId   = null, ovPoll   = null, ovOffset   = 0;
-let ovDisablePoll = null, ovDisableOffset = 0;
-window._cbo = false;
-
-// ── NAV ────────────────────────────────────────────────────────────────
-function goto(name, el) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('page-' + name).classList.add('active');
-  if (el) el.classList.add('active');
-  document.getElementById('tb-page').innerText = name.charAt(0).toUpperCase() + name.slice(1);
-  if (name === 'dashboard') { loadStats(); loadRecentJobs(); }
-  if (name === 'jobs')      loadJobs();
-  if (name === 'sparks')    renderSparks();
-  if (name === 'overview')  populateOvBC();
-}
-
-// ── API ────────────────────────────────────────────────────────────────
-async function api(method, path, body) {
-  const opts = { method, headers: {'Content-Type':'application/json'} };
-  if (body) opts.body = JSON.stringify(body);
-  const r = await fetch(path, opts);
-  return r.json();
-}
-
-// ── BCs ────────────────────────────────────────────────────────────────
-async function loadBCs() {
-  bcs = await api('GET', '/api/bcs');
-  renderBCGrid();
-  renderBCSelects();
-  document.getElementById('n-bc').innerText = bcs.length;
-}
-
-function renderBCGrid() {
-  const g = document.getElementById('bc-grid');
-  if (!bcs.length) {
-    g.innerHTML = '<div class="empty" style="grid-column:1/-1"><span class="empty-icon">🏢</span><div class="empty-text">Nenhum BC cadastrado</div></div>';
-    return;
-  }
-  g.innerHTML = bcs.map(bc => {
-    const n  = (bc.advertiser_ids||[]).length;
-    const ok = bc.token_ok;
-    const badge = ok
-      ? '<span class="badge badge-ok">✓ Conectado</span>'
-      : '<span class="badge badge-err">✗ Sem Token</span>';
-    return `<div class="bc-card ${ok?'connected':''}">
-      <div class="bc-card-top">
-        <div>
-          <div class="bc-name">${esc(bc.nome)}</div>
-          <div class="bc-meta">${n} contas · ID ${bc.id}</div>
-        </div>
-        ${badge}
-      </div>
-      <div class="bc-actions">
-        ${!ok
-          ? `<button class="btn btn-primary btn-sm" onclick="startOAuth(${bc.id})">🔐 OAuth</button>`
-          : `<button class="btn btn-ghost btn-sm" onclick="syncContas(${bc.id})">↻ Sync</button>`}
-        <button class="btn btn-ghost btn-sm" onclick="verIds(${bc.id})">👁 IDs</button>
-        <button class="btn btn-danger btn-sm" onclick="delBC(${bc.id})">✕</button>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-function renderBCSelects() {
-  const opts = bcs.map(b => `<option value="${b.id}">${esc(b.nome)} (${(b.advertiser_ids||[]).length})</option>`).join('');
-  document.getElementById('c-bc').innerHTML      = '<option value="">— Selecione —</option>' + opts;
-  document.getElementById('ov-bc-sel').innerHTML = '<option value="">— Selecione BC —</option>' + opts;
-  document.getElementById('sp-bc').innerHTML     = '<option value="">— Nenhum —</option>' + opts;
-}
-
-async function addBC() {
-  const nome   = document.getElementById('bc-nome').value.trim();
-  if (!nome) return alert('Nome obrigatório');
-  const idsRaw = document.getElementById('bc-advids').value.trim();
-  const advertiser_ids = idsRaw ? idsRaw.split('\n').map(s=>s.trim()).filter(Boolean) : [];
-  await api('POST', '/api/bcs', { nome, advertiser_ids });
-  closeM('m-add-bc');
-  document.getElementById('bc-nome').value  = '';
-  document.getElementById('bc-advids').value = '';
-  await loadBCs();
-}
-
-async function delBC(id) {
-  if (!confirm('Remover este BC?')) return;
-  await api('DELETE', `/api/bcs/${id}`);
-  await loadBCs();
-}
-
-async function syncContas(bcId) {
-  const btn = event.target;
-  btn.disabled = true; btn.innerText = '...';
-  const r = await api('GET', `/api/bcs/${bcId}/advertisers`);
-  btn.disabled = false; btn.innerText = '↻ Sync';
-  if (r.ok) { alert(`✓ ${r.total} contas sincronizadas!`); await loadBCs(); }
-  else alert('Erro: ' + r.error);
-}
-
-function verIds(bcId) {
-  const bc = bcs.find(b=>b.id===bcId);
-  if (!bc) return;
-  alert(`IDs de ${bc.nome}:\n\n${(bc.advertiser_ids||[]).join('\n')||'(nenhum)'}`);
-}
-
-// ── OAUTH ──────────────────────────────────────────────────────────────
-function startOAuth(bcId) { oauthBcId = bcId; document.getElementById('oauth-code').value = ''; openM('m-oauth'); }
-async function abrirOAuth() {
-  if (!oauthBcId) return;
-  const r = await api('GET', `/oauth/url?bc_id=${oauthBcId}`);
-  if (r.ok) window.open(r.url, '_blank');
-}
-async function trocarToken() {
-  const authCode = document.getElementById('oauth-code').value.trim();
-  if (!authCode) return alert('Cole o auth_code primeiro');
-  const r = await api('POST', '/api/oauth/exchange', { auth_code: authCode, bc_id: oauthBcId });
-  if (r.ok) { closeM('m-oauth'); alert(`✓ Token salvo! ${r.advertiser_count} contas.`); await loadBCs(); }
-  else alert('Erro: ' + r.error);
-}
-
-// ── CAMPANHAS ATIVAS — OVERVIEW ASSÍNCRONO ─────────────────────────────
-function populateOvBC() {
-  // renderBCSelects já populou ov-bc-sel, não precisa fazer nada
-}
-
-async function loadOverview() {
-  const bcId = document.getElementById('ov-bc-sel').value;
-  if (!bcId) return;
-
-  // Cancela polling anterior se houver
-  if (ovPoll) { clearInterval(ovPoll); ovPoll = null; }
-
-  const card    = document.getElementById('ov-card');
-  const progWrap = document.getElementById('ov-prog-wrap');
-  const progBar  = document.getElementById('ov-prog-bar');
-  const progCount = document.getElementById('ov-prog-count');
-  const progLast  = document.getElementById('ov-prog-last');
-
-  card.innerHTML = '<div class="empty"><span class="empty-icon" style="display:inline-block;animation:spin 1s linear infinite">⟳</span><div class="empty-text">Iniciando scan...</div></div>';
-  progWrap.style.display = '';
-  progBar.style.width    = '0%';
-  progCount.innerText    = '0 / 0';
-  progLast.innerText     = '';
-
-  // Dispara o job no backend (POST agora)
-  const r = await api('POST', `/api/bcs/${bcId}/campaigns-overview`);
-  if (!r.ok) {
-    progWrap.style.display = 'none';
-    card.innerHTML = `<div class="empty"><span class="empty-icon">❌</span><div class="empty-text">${esc(r.error)}</div></div>`;
-    return;
-  }
-
-  ovJobId  = r.job_id;
-  ovOffset = 0;
-
-  // Polling a cada 1.5s
-  ovPoll = setInterval(async () => {
-    try {
-      const j = await api('GET', `/api/overview-job/${ovJobId}?offset=${ovOffset}`);
-      if (!j.ok) { clearInterval(ovPoll); return; }
-
-      ovOffset += j.logs.length;
-
-      // Atualiza barra de progresso
-      const pct = j.total > 0 ? Math.round(j.done / j.total * 100) : 0;
-      progBar.style.width  = pct + '%';
-      progCount.innerText  = `${j.done} / ${j.total}`;
-
-      // Último log como status
-      if (j.logs.length) {
-        progLast.innerText = j.logs[j.logs.length - 1].msg;
-      }
-
-      // Renderiza campanhas encontradas até agora (parcial)
-      renderCampanhas(j.campaigns, bcId);
-
-      if (j.status === 'done') {
-        clearInterval(ovPoll);
-        ovPoll = null;
-        progWrap.style.display = 'none';
-        document.getElementById('n-camps').innerText = j.campaigns.length;
-
-        if (!j.campaigns.length) {
-          card.innerHTML = '<div class="empty"><span class="empty-icon">✅</span><div class="empty-text">Nenhuma campanha ativa neste BC</div></div>';
-        }
-      }
-    } catch(e) {
-      console.error('polling error', e);
-    }
-  }, 1500);
-}
-
-function renderCampanhas(campaigns, bcId) {
-  const card = document.getElementById('ov-card');
-  if (!campaigns || !campaigns.length) {
-    card.innerHTML = '<div class="empty"><span class="empty-icon" style="display:inline-block;animation:spin 1s linear infinite">⟳</span><div class="empty-text">Buscando campanhas...</div></div>';
-    return;
-  }
-  card.innerHTML = campaigns.map(c => `
-    <div class="camp-row" id="cr-${c.campaign_id}">
-      <div class="camp-info">
-        <div class="camp-name">${esc(c.campaign_name)}</div>
-        <div class="camp-acc">${esc(c.advertiser_name)} · ${c.advertiser_id}</div>
-      </div>
-      <div class="camp-meta">
-        <span class="badge badge-warn" style="font-size:9px">${c.objective||'—'}</span>
-        <span class="badge badge-ok">ATIVA</span>
-        <button class="btn btn-danger btn-xs" onclick="disableOne(${bcId},'${c.advertiser_id}','${c.campaign_id}',this)">
-          ⏹ Pausar
+        <button class="btn btn-primary" onclick="showPage('bcs')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Novo BC
         </button>
       </div>
-    </div>`).join('');
-}
-
-async function disableOne(bcId, advId, campId, btn) {
-  btn.disabled = true; btn.innerText = '...';
-  const r = await api('POST', `/api/bcs/${bcId}/disable-campaign`,
-    { advertiser_id: advId, campaign_id: campId });
-  if (r.ok) {
-    const row = document.getElementById(`cr-${campId}`);
-    if (row) { row.style.opacity='.3'; row.style.pointerEvents='none'; }
-    const n = document.getElementById('n-camps');
-    n.innerText = Math.max(0, parseInt(n.innerText||0) - 1);
-  } else {
-    btn.disabled = false; btn.innerText = '⏹ Pausar';
-    alert('Erro: ' + r.error);
-  }
-}
-
-async function disableAll() {
-  const bcId = document.getElementById('ov-bc-sel').value;
-  if (!bcId) return alert('Selecione um BC primeiro');
-  if (!confirm('Desativar TODAS as campanhas ativas deste BC?')) return;
-
-  // Para busca em andamento para não conflitar
-  if (ovPoll) { clearInterval(ovPoll); ovPoll = null; }
-
-  const wrap = document.getElementById('ov-log-wrap');
-  wrap.style.display = '';
-  document.getElementById('ov-log').innerHTML = '';
-  document.getElementById('ov-live').style.background = 'var(--red)';
-  document.getElementById('ov-live').style.animation  = '';
-  document.getElementById('ov-prog-wrap').style.display = 'none';
-  ovDisableOffset = 0;
-
-  const r = await api('POST', `/api/bcs/${bcId}/disable-all-campaigns`);
-  if (!r.ok) { alert('Erro: ' + r.error); wrap.style.display='none'; return; }
-
-  const disableJobId = r.job_id;
-  ovDisablePoll = setInterval(async () => {
-    const j = await api('GET', `/api/job/${disableJobId}/logs?offset=${ovDisableOffset}`);
-    const logEl = document.getElementById('ov-log');
-    j.logs.forEach(l => {
-      const d = document.createElement('div');
-      d.className='ll';
-      d.innerHTML=`<span class="lt">${l.ts}</span><span class="lm ${l.level}">${esc(l.msg)}</span>`;
-      logEl.appendChild(d);
-    });
-    logEl.scrollTop = logEl.scrollHeight;
-    ovDisableOffset += j.logs.length;
-    if (j.status === 'done') {
-      clearInterval(ovDisablePoll);
-      document.getElementById('ov-live').style.background = 'var(--green)';
-      document.getElementById('ov-live').style.animation  = 'none';
-      // NÃO recarrega automático — botão manual para o usuário decidir
-      const btn = document.createElement('div');
-      btn.style.cssText = 'padding:10px 0 4px';
-      btn.innerHTML = '<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'ov-log-wrap\').style.display=\'none\'; loadOverview()">↻ Ver campanhas restantes</button>';
-      logEl.appendChild(btn);
-      logEl.scrollTop = logEl.scrollHeight;
-    }
-  }, 1500);
-}
-
-// ── CAMPANHAS FORM ─────────────────────────────────────────────────────
-function selObj(btn)    { document.querySelectorAll('#c-obj .tgl').forEach(b=>b.classList.remove('on'));    btn.classList.add('on'); }
-function selGender(btn) { document.querySelectorAll('#c-gender .tgl').forEach(b=>b.classList.remove('on')); btn.classList.add('on'); }
-
-function onCampBC() {
-  const bcId = parseInt(document.getElementById('c-bc').value);
-  const bc   = bcs.find(b=>b.id===bcId);
-  const listEl = document.getElementById('c-adv-list');
-  if (!bc || !(bc.advertiser_ids||[]).length) {
-    listEl.innerHTML = '<div class="adv-item" style="color:var(--text3)">Sem contas — sincronize o BC primeiro</div>';
-    document.getElementById('c-sel-count').innerText = '0 selecionadas';
-    return;
-  }
-  const accounts = bc.accounts || {};
-  listEl.innerHTML = bc.advertiser_ids.map(id => {
-    const name  = accounts[id]?.name || id;
-    const camps = accounts[id]?.campaigns_active ?? '';
-    return `<label class="adv-item">
-      <input type="checkbox" class="adv-chk" value="${id}" checked onchange="updSelCount()">
-      <span class="adv-item-name">${esc(name)}</span>
-      <span class="adv-item-id">${id}${camps!==''?' · '+camps+' ativas':''}</span>
-    </label>`;
-  }).join('');
-  updSelCount();
-}
-
-function updSelCount() {
-  const n = document.querySelectorAll('.adv-chk:checked').length;
-  document.getElementById('c-sel-count').innerText = n + ' selecionadas';
-}
-function selAll(v) { document.querySelectorAll('.adv-chk').forEach(c=>c.checked=v); updSelCount(); }
-
-async function loadPixels() {
-  const bcId = document.getElementById('c-bc').value;
-  if (!bcId) return alert('Selecione um BC');
-  const r = await api('GET', `/api/pixels/${bcId}`);
-  if (r.ok && r.pixels.length) {
-    const sel = document.getElementById('c-pixel-sel');
-    sel.style.display = '';
-    sel.innerHTML = '<option value="">— Selecione —</option>' +
-      r.pixels.map(p=>`<option value="${p.id}">${esc(p.name)} (${p.id})</option>`).join('');
-  } else alert(r.error||'Nenhum pixel');
-}
-
-function toggleSW(id, key) {
-  window[key] = !window[key];
-  document.getElementById(id).classList.toggle('on', window[key]);
-  const lbl = document.getElementById(id+'-lbl');
-  if (lbl) lbl.innerText = window[key] ? 'Ativado — TikTok distribui automaticamente' : 'Desativado';
-}
-
-async function startCamp() {
-  const bcId = parseInt(document.getElementById('c-bc').value);
-  if (!bcId) return alert('Selecione um BC');
-  const objetivo = document.querySelector('#c-obj .tgl.on')?.dataset.val || 'VIDEO_VIEWS';
-  const paises   = [...document.querySelectorAll('#c-paises .tgl.on')].map(b=>b.dataset.val);
-  const gender   = document.querySelector('#c-gender .tgl.on')?.dataset.val || 'GENDER_UNLIMITED';
-  const advIds   = [...document.querySelectorAll('.adv-chk:checked')].map(c=>c.value);
-  if (!paises.length) return alert('Selecione pelo menos um país');
-  if (!advIds.length)  return alert('Selecione pelo menos uma conta');
-
-  const payload = {
-    bc_id: bcId, objetivo, budget_optimize_on: window._cbo,
-    campaign_name      : document.getElementById('c-nome').value || 'TikAuto',
-    budget             : parseFloat(document.getElementById('c-budget').value)||20,
-    num_adgroups       : parseInt(document.getElementById('c-adgroups').value)||1,
-    adgroup_name       : document.getElementById('c-agname').value||'AdGroup',
-    pixel_id           : document.getElementById('c-pixel').value,
-    optimization_event : document.getElementById('c-optevt').value,
-    paises, idade_min  : parseInt(document.getElementById('c-amin').value),
-    idade_max          : parseInt(document.getElementById('c-amax').value),
-    gender,
-    post_code          : document.getElementById('c-authcode').value,
-    item_id            : document.getElementById('c-item').value,
-    post_type          : document.getElementById('c-ptype').value,
-    identity_id        : document.getElementById('c-identity').value,
-    product_url        : document.getElementById('c-url').value,
-    cta                : document.getElementById('c-cta').value,
-    advertiser_ids     : advIds,
-  };
-
-  const r = await api('POST', '/api/criar-campanhas', payload);
-  if (!r.ok) return alert('Erro: ' + r.error);
-
-  campJobId = r.job_id; campOffset = 0;
-  document.getElementById('btn-camp').disabled          = true;
-  document.getElementById('btn-stop-camp').style.display = '';
-  document.getElementById('c-prog-wrap').style.display   = '';
-  document.getElementById('c-live').style.background     = 'var(--red)';
-  document.getElementById('log-camp').innerHTML           = '';
-  campPoll = setInterval(() => pollJob('camp'), 1500);
-}
-
-function stopJob(tipo) {
-  const id = tipo==='camp' ? campJobId : null;
-  if (id) api('POST', `/api/job/${id}/stop`);
-}
-
-async function pollJob(tipo) {
-  const jobId  = tipo==='camp' ? campJobId  : null;
-  const offset = tipo==='camp' ? campOffset : 0;
-  if (!jobId) return;
-  const r = await api('GET', `/api/job/${jobId}/logs?offset=${offset}`);
-  const logEl = document.getElementById('log-camp');
-  r.logs.forEach(l => {
-    const d = document.createElement('div');
-    d.className='ll';
-    d.innerHTML=`<span class="lt">${l.ts}</span><span class="lm ${l.level}">${esc(l.msg)}</span>`;
-    logEl.appendChild(d);
-  });
-  logEl.scrollTop = logEl.scrollHeight;
-  campOffset += r.logs.length;
-
-  const pct = r.total>0 ? Math.round(r.done/r.total*100) : 0;
-  document.getElementById('c-prog-txt').innerText = `${r.done} / ${r.total}`;
-  document.getElementById('c-prog-bar').style.width = pct+'%';
-  document.getElementById('c-suc').innerText = r.sucesso;
-  document.getElementById('c-fal').innerText = r.falha;
-
-  if (r.status==='done') {
-    clearInterval(campPoll);
-    document.getElementById('c-live').style.background = 'var(--green)';
-    document.getElementById('c-live').style.animation  = 'none';
-    document.getElementById('btn-camp').disabled           = false;
-    document.getElementById('btn-stop-camp').style.display = 'none';
-  }
-}
-
-// ── SPARK POSTS ────────────────────────────────────────────────────────
-async function loadSparks() {
-  sparks = await api('GET', '/api/sparks');
-  document.getElementById('n-sparks').innerText = sparks.length;
-  renderSparks();
-}
-
-function renderSparks() {
-  const g = document.getElementById('spark-grid');
-  if (!sparks.length) {
-    g.innerHTML='<div class="empty" style="grid-column:1/-1"><span class="empty-icon">⚡</span><div class="empty-text">Nenhum Spark Post salvo ainda</div></div>';
-    return;
-  }
-  g.innerHTML = sparks.map(s => `
-    <div class="spark-card">
-      <div class="spark-type ${s.type}">${s.type==='post'?'📹 Spark Post':'🔗 Link'}</div>
-      <div class="spark-label">${esc(s.label||'Sem nome')}</div>
-      <div class="spark-val">${esc(s.value)}</div>
-      ${s.item_id?`<div style="margin-top:6px"><span class="badge badge-ok">ID: ${s.item_id}</span></div>`:''}
-      ${s.identity_id?`<div style="margin-top:4px"><span class="badge badge-idle" style="font-size:9px">Identity: ${s.identity_id}</span></div>`:''}
-      <div style="font-size:10px;color:var(--text3);font-family:var(--mono);margin-top:6px">${s.criado_em?.slice(0,10)||'—'}</div>
-      <div class="spark-actions">
-        <button class="btn btn-ghost btn-xs" onclick="useSpark('${s.id}')">↗ Usar</button>
-        <button class="btn btn-danger btn-xs" onclick="delSpark('${s.id}')">✕</button>
+    </div>
+    <div class="kpi-strip">
+      <div class="kpi cyan">
+        <div class="kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--tt-cyan)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>
+        <div class="kpi-label">Business Centers</div>
+        <div class="kpi-val" id="stat-total-bc">0</div>
+        <div class="kpi-delta">cadastrados</div>
       </div>
-    </div>`).join('');
+      <div class="kpi green">
+        <div class="kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <div class="kpi-label">Campanhas OK</div>
+        <div class="kpi-val" id="stat-sucesso">0</div>
+        <div class="kpi-delta">criadas com sucesso</div>
+      </div>
+      <div class="kpi red">
+        <div class="kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--tt-red)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+        <div class="kpi-label">Com Falha</div>
+        <div class="kpi-val" id="stat-falha">0</div>
+        <div class="kpi-delta">atenção necessária</div>
+      </div>
+      <div class="kpi purple">
+        <div class="kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+        <div class="kpi-label">Em Execução</div>
+        <div class="kpi-val" id="stat-running">0</div>
+        <div class="kpi-delta">processos ativos</div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-head">Monitor de Saúde</div>
+      <div class="cfg-card" style="margin-bottom:0">
+        <div class="health-row"><div class="health-label">Taxa de Sucesso</div><div class="health-track"><div class="health-fill green" id="health-taxa" style="width:0%"></div></div><div class="health-pct" id="health-taxa-pct" style="color:var(--green)">0%</div></div>
+        <div class="health-row"><div class="health-label">BCs Ativos</div><div class="health-track"><div class="health-fill cyan" id="health-bcs" style="width:0%"></div></div><div class="health-pct" id="health-bcs-pct" style="color:var(--tt-cyan)">0%</div></div>
+        <div class="health-row"><div class="health-label">Carga do Sistema</div><div class="health-track"><div class="health-fill red" id="health-load" style="width:0%"></div></div><div class="health-pct" id="health-load-pct" style="color:var(--tt-red)">0%</div></div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-head">Business Centers</div>
+      <div class="bc-grid" id="dashboard-bc-grid">
+        <div class="empty" style="grid-column:span 2"><div class="empty-icon">🏢</div><div class="empty-text">Nenhum BC. <a href="#" onclick="showPage('bcs')" style="color:var(--tt-red)">Adicionar →</a></div></div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-head">Log ao Vivo</div>
+      <div class="log-box">
+        <div class="log-top"><div class="log-title-area"><div class="live-dot"></div>Terminal · atividade em tempo real</div><div class="log-actions"><button class="log-btn" onclick="clearLog()">Limpar</button></div></div>
+        <div class="log-body" id="log-body"><div class="log-line info"><span class="log-time">boot</span><span class="log-msg">TikAuto iniciado · aguardando comandos</span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── BUSINESS CENTERS ── -->
+  <div class="page" id="page-bcs">
+    <div class="page-header">
+      <div><div class="page-title">Business Centers</div><div class="page-sub">// gerencie perfis ADS Power · máximo 10 BCs</div></div>
+      <button class="btn btn-primary" onclick="openAddBC()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Adicionar BC
+      </button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Nome do BC</th><th>Profile ID</th><th>Status</th><th>Contas</th><th>Campanhas ✓/✕</th><th>Ações</th></tr></thead>
+        <tbody id="bc-table-body"><tr><td colspan="7"><div class="empty"><div class="empty-icon">🏢</div><div class="empty-text">Nenhum BC cadastrado ainda</div></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── CRIAR CONTAS ── -->
+  <div class="page" id="page-contas">
+    <div class="page-header">
+      <div><div class="page-title">Criar Contas</div><div class="page-sub">// criação automática via ADS Power · Playwright</div></div>
+    </div>
+    <div class="action-bar">
+      <div class="action-title">Criação de Contas em Massa</div>
+      <span class="count-chip">BCs: <span id="contas-bc-count">0</span></span>
+      <button class="btn btn-teal" id="btn-start-contas" onclick="startContas()">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        Iniciar
+      </button>
+      <button class="btn btn-stop" id="btn-stop-contas" onclick="stopContas()" style="display:none">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+        Parar
+      </button>
+    </div>
+    <div class="grid-2">
+      <div>
+        <div class="section-head">Selecionar BCs</div>
+        <div id="contas-bc-list" style="display:flex;flex-direction:column;gap:8px">
+          <div class="empty"><div class="empty-icon">🏢</div><div class="empty-text">Cadastre BCs primeiro</div></div>
+        </div>
+      </div>
+      <div>
+        <div class="section-head">Configuração</div>
+        <div class="cfg-card" style="margin-bottom:12px">
+          <div class="form-group">
+            <label class="form-label">Quantidade de contas por BC</label>
+            <div class="range-row">
+              <input type="range" min="1" max="200" value="100" id="range-qtd-contas" oninput="document.getElementById('val-qtd-contas').innerText=this.value">
+              <div class="range-val" id="val-qtd-contas">100</div>
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">Pausa entre erros (min)</label>
+            <div class="range-row">
+              <input type="range" min="1" max="10" value="3" id="range-pausa" oninput="document.getElementById('val-pausa').innerText=this.value">
+              <div class="range-val" id="val-pausa">3</div>
+            </div>
+          </div>
+        </div>
+        <div class="section-head" style="margin-top:20px">Log · Contas</div>
+        <div class="log-box">
+          <div class="log-top"><div class="log-title-area"><div class="live-dot"></div>Terminal · contas</div></div>
+          <div class="log-body" id="log-contas" style="height:200px"><div class="log-line default"><span class="log-time">--:--</span><span class="log-msg">Aguardando início...</span></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="section" style="margin-top:28px">
+      <div class="section-head">Progresso por BC</div>
+      <div id="contas-progress-grid" class="bc-grid">
+        <div class="empty" style="grid-column:span 2"><div class="empty-icon">⏳</div><div class="empty-text">Inicie o processo para ver o progresso</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── CAMPANHAS ── -->
+  <div class="page" id="page-campanhas">
+    <div class="page-header">
+      <div><div class="page-title">Campanhas</div><div class="page-sub">// criação automática de campanhas · configuração avançada</div></div>
+    </div>
+    <div class="action-bar">
+      <div class="action-title">Criação de Campanhas em Massa</div>
+      <span class="count-chip">BCs: <span id="camp-bc-count">0</span></span>
+      <button class="btn btn-success" id="btn-start-camp" onclick="startCampanhas()">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        Iniciar
+      </button>
+      <button class="btn btn-stop" id="btn-stop-camp" onclick="stopCampanhas()" style="display:none">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+        Parar
+      </button>
+    </div>
+
+    <div class="grid-2">
+      <!-- COLUNA ESQUERDA -->
+      <div>
+        <div class="section-head">Post TikTok</div>
+        <div class="cfg-card" style="margin-bottom:14px">
+          <div class="form-group" style="margin-bottom:10px">
+            <label class="form-label">Link ou Código do Post</label>
+            <input type="text" class="form-input" id="input-post-code" placeholder="https://tiktok.com/@user/video/... ou código auth">
+            <div class="tip cyan" style="margin-top:10px">Cole o link completo do post TikTok ou o código de autorização (#abc...).</div>
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">Usar post salvo</label>
+            <select class="form-input" id="select-spark-post" onchange="usarSparkPost()">
+              <option value="">— Selecione um post salvo —</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="section-head">Selecionar BCs</div>
+        <div id="camp-bc-list" style="display:flex;flex-direction:column;gap:8px"></div>
+      </div>
+
+      <!-- COLUNA DIREITA -->
+      <div>
+        <div class="section-head">Configuração Avançada</div>
+        <div class="cfg-card" style="margin-bottom:12px">
+
+          <div class="form-group">
+            <label class="form-label">Objetivo da Campanha</label>
+            <select class="form-input" id="camp-objetivo">
+              <option value="VIDEO_VIEWS">📹 Visualizações de Vídeo</option>
+              <option value="REACH">📢 Alcance</option>
+              <option value="TRAFFIC">🔗 Tráfego</option>
+              <option value="ENGAGEMENT">💬 Engajamento</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Quantidade de Conjuntos de Anúncios</label>
+            <div class="range-row">
+              <input type="range" min="1" max="10" value="1" id="range-conjuntos" oninput="document.getElementById('val-conjuntos').innerText=this.value">
+              <div class="range-val" id="val-conjuntos">1</div>
+            </div>
+            <div class="tip" style="margin-top:6px">Número de ad groups criados por conta.</div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">País / Segmentação</label>
+            <select class="form-input" id="camp-pais">
+              <option value="BR">🇧🇷 Brasil</option>
+              <option value="PT">🇵🇹 Portugal</option>
+              <option value="US">🇺🇸 Estados Unidos</option>
+              <option value="MX">🇲🇽 México</option>
+              <option value="AR">🇦🇷 Argentina</option>
+              <option value="CO">🇨🇴 Colômbia</option>
+              <option value="CL">🇨🇱 Chile</option>
+              <option value="PE">🇵🇪 Peru</option>
+            </select>
+          </div>
+
+          <div class="grid-2" style="gap:12px">
+            <div class="form-group" style="margin-bottom:0">
+              <label class="form-label">Data de Início</label>
+              <input type="datetime-local" class="form-input" id="camp-data-inicio" style="font-size:11px;padding:9px 12px">
+              <div style="font-size:9px;color:var(--text3);font-family:var(--mono);margin-top:4px">Deixe vazio para iniciar agora</div>
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label class="form-label">Data de Fim</label>
+              <input type="datetime-local" class="form-input" id="camp-data-fim" style="font-size:11px;padding:9px 12px">
+              <div style="font-size:9px;color:var(--text3);font-family:var(--mono);margin-top:4px">Deixe vazio para sem fim</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-head" style="margin-top:4px">Contas Simultâneas</div>
+        <div class="cfg-card" style="margin-bottom:12px">
+          <div class="form-group" style="margin-bottom:0">
+            <div class="range-row">
+              <input type="range" min="1" max="3" value="1" id="range-simultaneas" oninput="document.getElementById('val-simultaneas').innerText=this.value">
+              <div class="range-val" id="val-simultaneas">1</div>
+            </div>
+            <div class="tip" style="margin-top:8px">⚠ Máximo 3 simultâneas para evitar detecção.</div>
+          </div>
+        </div>
+
+        <div class="section-head">Log · Campanhas</div>
+        <div class="log-box">
+          <div class="log-top"><div class="log-title-area"><div class="live-dot"></div>Terminal · campanhas</div></div>
+          <div class="log-body" id="log-camp" style="height:180px"><div class="log-line default"><span class="log-time">--:--</span><span class="log-msg">Aguardando início...</span></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" style="margin-top:28px">
+      <div class="section-head">Progresso por BC</div>
+      <div id="camp-progress-grid" class="bc-grid">
+        <div class="empty" style="grid-column:span 2"><div class="empty-icon">⏳</div><div class="empty-text">Inicie o processo para ver o progresso</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SPARK POSTS ── -->
+  <div class="page" id="page-posts">
+    <div class="page-header">
+      <div><div class="page-title">Spark Posts</div><div class="page-sub">// gerencie links e códigos de posts salvos</div></div>
+      <button class="btn btn-teal" onclick="openAddPost()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Adicionar Post
+      </button>
+    </div>
+    <div id="posts-list">
+      <div class="empty"><div class="empty-icon">🎬</div><div class="empty-text">Nenhum post salvo ainda. Adicione links de vídeos TikTok para reusar nas campanhas.</div></div>
+    </div>
+  </div>
+
+  <!-- ── RELATÓRIOS ── -->
+  <div class="page" id="page-relatorios">
+    <div class="page-header">
+      <div><div class="page-title">Relatórios</div><div class="page-sub">// histórico completo por business center</div></div>
+      <div style="display:flex;gap:8px">
+        <select class="form-input" id="filter-bc" style="width:190px" onchange="loadRelatorio()"><option value="all">Todos os BCs</option></select>
+        <select class="form-input" id="filter-tipo" style="width:160px" onchange="loadRelatorio()"><option value="all">Todos</option><option value="sucesso">✓ Sucesso</option><option value="falha">✕ Falha</option></select>
+      </div>
+    </div>
+    <div class="cfg-card" style="margin-bottom:24px">
+      <div class="cfg-title">Importar Contas Já Processadas</div>
+      <div class="cfg-desc">Suba um .txt com contas já criadas para evitar repetição.</div>
+      <div class="grid-2" style="gap:12px;align-items:end">
+        <div>
+          <div class="form-group"><label class="form-label">Business Center</label><select class="form-input" id="upload-bc-sel"><option value="">Selecione o BC...</option></select></div>
+          <div class="form-group" style="margin-bottom:0"><label class="form-label">Tipo</label><select class="form-input" id="upload-tipo-sel"><option value="campanha">Campanhas</option><option value="criacao_conta">Criação de Contas</option></select></div>
+        </div>
+        <div>
+          <div class="form-group"><label class="form-label">Arquivo .txt</label><input type="file" class="form-input" id="upload-arquivo" accept=".txt" style="padding:9px"></div>
+          <button class="btn btn-primary" onclick="uploadContas()" style="width:100%">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Importar
+          </button>
+        </div>
+      </div>
+      <div id="upload-result" style="margin-top:12px;font-size:10px;font-family:var(--mono);display:none"></div>
+    </div>
+    <div class="kpi-strip" style="grid-template-columns:repeat(3,1fr);margin-bottom:20px">
+      <div class="kpi green"><div class="kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><div class="kpi-label">Total Sucesso</div><div class="kpi-val" id="rel-sucesso">0</div></div>
+      <div class="kpi red"><div class="kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--tt-red)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div><div class="kpi-label">Total Falhas</div><div class="kpi-val" id="rel-falha">0</div></div>
+      <div class="kpi cyan"><div class="kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--tt-cyan)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg></div><div class="kpi-label">Taxa de Sucesso</div><div class="kpi-val" id="rel-taxa">0%</div></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Hora</th><th>BC</th><th>Conta</th><th>Tipo</th><th>Status</th><th>Detalhe</th></tr></thead>
+        <tbody id="relatorio-body"><tr><td colspan="6"><div class="empty"><div class="empty-icon">📋</div><div class="empty-text">Nenhum registro ainda</div></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── CONFIGURAÇÕES ── -->
+  <div class="page" id="page-config">
+    <div class="page-header">
+      <div><div class="page-title">Configurações</div><div class="page-sub">// preferências avançadas do sistema</div></div>
+    </div>
+    <div class="grid-2">
+      <div>
+        <div class="cfg-card">
+          <div class="cfg-title">ADS Power</div>
+          <div class="cfg-desc">URL de conexão local</div>
+          <div class="form-group"><label class="form-label">URL do ADS Power</label><input type="text" class="form-input" id="cfg-adspower-url" value="http://local.adspower.net:50325"></div>
+          <button class="btn btn-ghost btn-sm" onclick="testarConexao()">Testar Conexão</button>
+        </div>
+        <div class="cfg-card">
+          <div class="cfg-title">Comportamento</div>
+          <div class="cfg-desc">Ajuste limites e intervalos</div>
+          <div class="form-group">
+            <label class="form-label">Tentativas ao falhar</label>
+            <div class="range-row"><input type="range" min="1" max="10" value="9" id="range-tentativas" oninput="document.getElementById('val-tentativas').innerText=this.value"><div class="range-val" id="val-tentativas">9</div></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Pausa após erro (seg)</label>
+            <div class="range-row"><input type="range" min="60" max="600" step="30" value="180" id="range-pausa-err" oninput="document.getElementById('val-pausa-err').innerText=this.value+'s'"><div class="range-val" id="val-pausa-err" style="font-size:14px">180s</div></div>
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">BCs simultâneos</label>
+            <div class="range-row"><input type="range" min="1" max="10" value="2" id="range-simultaneos" oninput="maxSimultaneos=parseInt(this.value); document.getElementById('val-simultaneos').innerText=this.value"><div class="range-val" id="val-simultaneos">2</div></div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="cfg-card">
+          <div class="cfg-title">Dados</div>
+          <div class="cfg-desc">Gerenciar histórico e exportações</div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <button class="btn btn-ghost" onclick="exportarDados()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Exportar Relatório JSON
+            </button>
+            <button class="btn btn-danger" onclick="limparDados()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+              Limpar Histórico
+            </button>
+          </div>
+        </div>
+        <div class="cfg-card">
+          <div class="cfg-title">Runtime</div>
+          <div class="cfg-desc">Informações do sistema</div>
+          <div class="sysrow">Versão <span class="v-cyan">5.0.0</span></div>
+          <div class="sysrow">Python <span class="v-cyan">3.x</span></div>
+          <div class="sysrow">Playwright <span class="v-green">instalado</span></div>
+          <div class="sysrow">Workers ativos <span class="v-red" id="cfg-workers">0</span></div>
+          <div class="sysrow">Uptime <span class="v-cyan" id="cfg-uptime">00:00:00</span></div>
+        </div>
+        <div class="cfg-card">
+          <div class="cfg-title">Módulos</div>
+          <div class="cfg-desc">Status dos módulos do sistema</div>
+          <div style="font-size:11px;font-family:var(--mono);color:var(--text2);line-height:2.2">
+            <div>Criar Contas (ADS Power): <span style="color:var(--green)">ativo</span></div>
+            <div>Criar Campanhas (ADS Power): <span style="color:var(--green)">ativo</span></div>
+            <div>Spark Posts Manager: <span style="color:var(--green)">ativo</span></div>
+            <div>Agendamento por data: <span style="color:var(--tt-cyan)">ativo</span></div>
+            <div>Multi-conjunto de anúncios: <span style="color:var(--tt-cyan)">ativo</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<!-- ── MODALS ── -->
+<div class="modal-overlay" id="modal-add-bc">
+  <div class="modal">
+    <div class="modal-title">Adicionar Business Center</div>
+    <div class="form-group"><label class="form-label">Nome do BC</label><input type="text" class="form-input" id="bc-nome" placeholder="Ex: BC Brasil 1"></div>
+    <div class="form-group"><label class="form-label">Profile ID — ADS Power</label><input type="text" class="form-input" id="bc-profile-id" placeholder="Ex: k1952o9j"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarBC()">Salvar BC</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-delete">
+  <div class="modal">
+    <div class="modal-title">Remover BC</div>
+    <p style="color:var(--text2);font-size:13px;margin-bottom:8px;font-family:var(--mono)">Tem certeza? Os relatórios associados serão mantidos.</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-danger" onclick="confirmarDelete()">Remover</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-add-post">
+  <div class="modal">
+    <div class="modal-title">Adicionar Spark Post</div>
+    <div class="form-group"><label class="form-label">Label (nome para identificar)</label><input type="text" class="form-input" id="post-label" placeholder="Ex: Post Lançamento Coleção 01"></div>
+    <div class="form-group"><label class="form-label">Link do vídeo ou Código Auth</label><input type="text" class="form-input" id="post-value" placeholder="https://tiktok.com/@user/video/... ou #Dj8s..."></div>
+    <div class="tip cyan" style="margin-top:0;margin-bottom:16px">O item_id será extraído automaticamente do link.</div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-teal" onclick="salvarPost()">Salvar Post</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+// ── TOAST ────────────────────────────────────────────────────────────────────
+function showToast(msg, type='info') {
+  const colors = {info:'var(--tt-cyan)',success:'var(--green)',error:'var(--tt-red)',warn:'var(--orange)'};
+  const t = document.createElement('div');
+  const c = colors[type]||'var(--tt-cyan)';
+  t.style.cssText = `background:var(--s2);border:1px solid ${c};color:${c};padding:12px 18px;border-radius:10px;font-family:'IBM Plex Mono',monospace;font-size:12px;pointer-events:auto;animation:slideIn 0.25s ease;box-shadow:0 8px 32px rgba(0,0,0,0.5);max-width:320px;`;
+  t.innerText = msg;
+  document.getElementById('toast-container').appendChild(t);
+  setTimeout(()=>{ t.style.opacity='0'; t.style.transition='opacity 0.3s'; setTimeout(()=>t.remove(),300); }, 4000);
 }
 
-function useSpark(id) {
-  const s = sparks.find(x=>x.id===id);
-  if (!s) return;
-  document.getElementById('c-item').value = s.value;
-  if (s.identity_id) document.getElementById('c-identity').value = s.identity_id;
-  goto('campanhas', document.querySelector('.nav-item:nth-child(7)'));
-  setTimeout(() => alert('✓ Spark Post carregado no formulário!'), 200);
+// ── UPTIME ───────────────────────────────────────────────────────────────────
+let uptimeStart = Date.now();
+function updateUptime() {
+  const el = document.getElementById('cfg-uptime'); if (!el) return;
+  const s = Math.floor((Date.now()-uptimeStart)/1000);
+  el.innerText = `${String(Math.floor(s/3600)).padStart(2,'0')}:${String(Math.floor((s%3600)/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+}
+setInterval(updateUptime, 1000);
+
+// ── STATE ────────────────────────────────────────────────────────────────────
+let bcs = JSON.parse(localStorage.getItem('tiktok_bcs')||'[]');
+let relatorios = JSON.parse(localStorage.getItem('tiktok_relatorios')||'[]');
+let deleteIdx = null;
+let contasBcSelecionados = new Set();
+let campBcSelecionados   = new Set();
+let serverStats = {};
+let runningKeys = [];
+let totaisContas = {};
+let maxSimultaneos = 2;
+let sparkPosts = [];
+
+// ── NAVIGATION ───────────────────────────────────────────────────────────────
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  const map = {dashboard:'dashboard',bcs:'business',contas:'criar',campanhas:'campanha',posts:'spark',relatorios:'relat',config:'config'};
+  document.querySelectorAll('.nav-item').forEach(n=>{
+    if (n.textContent.toLowerCase().includes(map[name]||name)) n.classList.add('active');
+  });
+  if (name==='bcs')        renderBCTable();
+  if (name==='dashboard')  renderDashboard();
+  if (name==='contas')     renderContasBCList();
+  if (name==='campanhas')  { renderCampBCList(); loadSparkPosts(); }
+  if (name==='relatorios') loadRelatorio();
+  if (name==='posts')      renderPostsList();
 }
 
-function selSparkType(btn) {
-  document.querySelectorAll('#spark-type-tgl .tgl').forEach(b=>b.classList.remove('on'));
-  btn.classList.add('on');
-  const isLink = btn.dataset.val === 'link';
-  document.getElementById('sp-val-lbl').innerText    = isLink ? 'URL do Link' : 'Link ou Item ID do Post';
-  document.getElementById('sp-val-hint').innerText   = isLink ? 'Cole a URL de destino.' : 'Cole o link do vídeo TikTok — o Item ID será extraído automaticamente.';
-  document.getElementById('sp-identity-wrap').style.display = isLink ? 'none' : '';
+// ── BC CRUD ───────────────────────────────────────────────────────────────────
+function openAddBC() {
+  if (bcs.length >= 10) { showToast('Máximo de 10 BCs atingido!', 'error'); return; }
+  document.getElementById('bc-nome').value = '';
+  document.getElementById('bc-profile-id').value = '';
+  document.getElementById('modal-add-bc').classList.add('open');
+}
+function closeModal() { document.querySelectorAll('.modal-overlay').forEach(m=>m.classList.remove('open')); }
+
+function salvarBC() {
+  const nome = document.getElementById('bc-nome').value.trim();
+  const profileId = document.getElementById('bc-profile-id').value.trim();
+  if (!nome||!profileId) { showToast('Preencha todos os campos!', 'warn'); return; }
+  bcs.push({id:Date.now(),nome,profileId,status:'idle',totalContas:0,campanhasSucesso:0,campanhasFalha:0,contasCriadas:0});
+  salvarDados(); closeModal(); updateNavBadge();
+  renderBCTable(); renderDashboard(); renderContasBCList(); renderCampBCList(); atualizarUploadBCSelect();
+  addLog('BC "'+nome+'" adicionado!','success'); showToast('BC "'+nome+'" adicionado!','success');
+  loadServerStats();
 }
 
-async function addSpark() {
-  const type     = document.querySelector('#spark-type-tgl .tgl.on')?.dataset.val || 'post';
-  const label    = document.getElementById('sp-label').value.trim();
-  const value    = document.getElementById('sp-val').value.trim();
-  const identity = document.getElementById('sp-identity').value.trim();
-  const bc_id    = document.getElementById('sp-bc').value;
-  if (!value) return alert('Informe o link ou ID');
-  const r = await api('POST', '/api/sparks', { type, label, value, identity_id: identity, bc_id });
-  if (r.ok) {
-    closeM('m-add-spark');
-    ['sp-label','sp-val','sp-identity'].forEach(id => document.getElementById(id).value='');
-    await loadSparks();
-  } else alert('Erro: ' + r.error);
-}
-
-async function delSpark(id) {
-  if (!confirm('Remover este Spark Post?')) return;
-  await api('DELETE', `/api/sparks/${id}`);
-  await loadSparks();
-}
-
-// ── STATS + JOBS ───────────────────────────────────────────────────────
-async function loadStats() {
-  const r = await api('GET', '/api/stats');
-  document.getElementById('d-bcs').innerText    = r.total_bcs;
-  document.getElementById('d-conn').innerText   = r.bcs_conectados;
-  document.getElementById('d-contas').innerText = r.total_contas;
-  document.getElementById('d-sparks').innerText = r.total_sparks||0;
-  document.getElementById('d-suc').innerText    = r.camp_sucesso;
-  document.getElementById('d-fal').innerText    = r.camp_falha;
-  document.getElementById('tp-bcs').innerText   = r.total_bcs;
-  document.getElementById('tp-contas').innerText = r.total_contas;
-  if (r.rodando > 0) {
-    document.getElementById('tp-run-pill').style.display = '';
-    document.getElementById('tp-run').innerText = r.rodando;
-  } else {
-    document.getElementById('tp-run-pill').style.display = 'none';
+function deleteBC(idx) { deleteIdx = idx; document.getElementById('modal-delete').classList.add('open'); }
+function confirmarDelete() {
+  if (deleteIdx!==null) {
+    const nome = bcs[deleteIdx].nome;
+    bcs.splice(deleteIdx,1); salvarDados(); updateNavBadge();
+    renderBCTable(); renderDashboard(); renderContasBCList(); renderCampBCList();
+    addLog('BC "'+nome+'" removido','warn'); deleteIdx=null;
   }
+  closeModal();
+}
+function editBC(idx) {
+  const bc = bcs[idx];
+  document.getElementById('bc-nome').value = bc.nome;
+  document.getElementById('bc-profile-id').value = bc.profileId;
+  bcs.splice(idx,1); salvarDados();
+  document.getElementById('modal-add-bc').classList.add('open');
+}
+function salvarDados() {
+  localStorage.setItem('tiktok_bcs', JSON.stringify(bcs));
+  localStorage.setItem('tiktok_relatorios', JSON.stringify(relatorios));
+}
+function updateNavBadge() { const el=document.getElementById('nav-bc-count'); if(el) el.innerText=bcs.length; }
+
+// ── BC TABLE ──────────────────────────────────────────────────────────────────
+function renderBCTable() {
+  const tbody = document.getElementById('bc-table-body');
+  if (!bcs.length) { tbody.innerHTML='<tr><td colspan="7"><div class="empty"><div class="empty-icon">🏢</div><div class="empty-text">Nenhum BC cadastrado ainda</div></div></td></tr>'; return; }
+  tbody.innerHTML = bcs.map((bc,i)=>{
+    const sc = serverStats[bc.nome+'|campanha']||{};
+    const st = serverStats[bc.nome+'|criacao_conta']||{};
+    const suc = sc.sucesso||bc.campanhasSucesso||0;
+    const fal = sc.falha||bc.campanhasFalha||0;
+    const tot = totaisContas[String(bc.id)]||st.total||bc.contasCriadas||0;
+    const run = runningKeys.some(k=>k.includes(bc.id));
+    const sl  = run?'running':(bc.status||'idle');
+    const st2 = run?'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="spinning"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> Rodando':(sl==='done'?'✓ Concluído':'Ocioso');
+    return `<tr><td><span style="font-family:var(--mono);color:var(--text3);font-size:11px">${i+1}</span></td><td style="font-weight:700">${bc.nome}</td><td><span style="font-family:var(--mono);font-size:10px;color:var(--tt-cyan)">${bc.profileId}</span></td><td><span class="bc-status ${sl}">${st2}</span></td><td style="font-family:var(--mono);font-size:12px">${tot}</td><td style="font-family:var(--mono);font-size:12px"><span style="color:var(--green)">✓${suc}</span><span style="color:var(--text3)"> / </span><span style="color:var(--tt-red)">✕${fal}</span></td><td><div style="display:flex;gap:6px"><button class="btn btn-ghost btn-sm" onclick="editBC(${i})">✏</button><button class="btn btn-danger btn-sm" onclick="deleteBC(${i})">✕</button></div></td></tr>`;
+  }).join('');
+  const sel = document.getElementById('filter-bc');
+  if (sel) sel.innerHTML='<option value="all">Todos os BCs</option>'+bcs.map(bc=>`<option value="${bc.id}">${bc.nome}</option>`).join('');
 }
 
-async function loadRecentJobs() {
-  const jobs = await api('GET', '/api/jobs');
-  const card  = document.getElementById('dash-jobs-card');
-  if (!jobs.length) {
-    card.innerHTML = '<div class="empty"><span class="empty-icon">⚡</span><div class="empty-text">Nenhum job ainda</div></div>';
-    return;
+// ── DASHBOARD ─────────────────────────────────────────────────────────────────
+function renderDashboard() {
+  let ts=0, tf=0;
+  bcs.forEach(bc=>{ const s=serverStats[bc.nome+'|campanha']||{}; ts+=s.sucesso||bc.campanhasSucesso||0; tf+=s.falha||bc.campanhasFalha||0; });
+  document.getElementById('stat-total-bc').innerText  = bcs.length;
+  document.getElementById('stat-sucesso').innerText   = ts;
+  document.getElementById('stat-falha').innerText     = tf;
+  document.getElementById('stat-running').innerText   = runningKeys.length;
+  updateNavBadge();
+  const cfgW = document.getElementById('cfg-workers'); if(cfgW) cfgW.innerText=runningKeys.length;
+  const total = ts+tf;
+  setHealth('health-taxa','health-taxa-pct', total>0?Math.round((ts/total)*100):0);
+  setHealth('health-bcs','health-bcs-pct',  bcs.length>0?Math.round((runningKeys.length/bcs.length)*100):0);
+  setHealth('health-load','health-load-pct', Math.min(100,runningKeys.length*20));
+  const grid = document.getElementById('dashboard-bc-grid');
+  if (!bcs.length) { grid.innerHTML='<div class="empty" style="grid-column:span 2"><div class="empty-icon">🏢</div><div class="empty-text">Nenhum BC cadastrado. <a href="#" onclick="showPage(\'bcs\')" style="color:var(--tt-red)">Adicionar →</a></div></div>'; return; }
+  grid.innerHTML = bcs.map(bc=>{
+    const sc=serverStats[bc.nome+'|campanha']||{};
+    const s=sc.sucesso||bc.campanhasSucesso||0; const f=sc.falha||bc.campanhasFalha||0;
+    const c=totaisContas[String(bc.id)]||bc.contasCriadas||0;
+    const t=s+f; const pct=t>0?Math.round((s/t)*100):0;
+    const run=runningKeys.some(k=>k.includes(String(bc.id)));
+    const sl=run?'running':'idle'; const st=run?'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="spinning"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> Rodando':'Ocioso';
+    return `<div class="bc-card"><div class="bc-card-top"><div><div class="bc-name">${bc.nome}</div><div class="bc-pid">${bc.profileId}</div></div><span class="bc-status ${sl}">${st}</span></div><div class="bc-progress"><div class="bc-progress-fill" style="width:${pct}%"></div></div><div class="bc-metrics"><div class="bc-metric">Contas: <strong>${c}</strong></div><div class="bc-metric" style="color:var(--green)">✓ <strong>${s}</strong></div><div class="bc-metric" style="color:var(--tt-red)">✕ <strong>${f}</strong></div><div class="bc-metric">Taxa: <strong>${pct}%</strong></div></div></div>`;
+  }).join('');
+}
+function setHealth(barId, pctId, val) {
+  const b=document.getElementById(barId); const p=document.getElementById(pctId);
+  if(b) b.style.width=val+'%'; if(p) p.innerText=val+'%';
+}
+
+// ── BC SELECTORS ──────────────────────────────────────────────────────────────
+function renderContasBCList() {
+  const div = document.getElementById('contas-bc-list');
+  if (!bcs.length) { div.innerHTML='<div class="empty"><div class="empty-icon">🏢</div><div class="empty-text">Cadastre BCs primeiro</div></div>'; return; }
+  div.innerHTML = bcs.map(bc=>{
+    const sel = contasBcSelecionados.has(bc.id);
+    return `<div class="bc-card" onclick="toggleContasBC(${bc.id},this)" id="contas-bc-${bc.id}" style="cursor:pointer;border-color:${sel?'rgba(37,244,238,0.35)':'var(--border)'}"><div class="bc-card-top" style="margin-bottom:0"><div><div class="bc-name">${bc.nome}</div><div class="bc-pid">${bc.profileId}</div></div><span class="bc-status ${sel?'running':'idle'}" id="contas-badge-${bc.id}">${sel?'✓ Selecionado':'Selecionar'}</span></div></div>`;
+  }).join('');
+}
+function toggleContasBC(id, el) {
+  if (contasBcSelecionados.has(id)) { contasBcSelecionados.delete(id); el.style.borderColor='var(--border)'; document.getElementById('contas-badge-'+id).className='bc-status idle'; document.getElementById('contas-badge-'+id).innerText='Selecionar'; }
+  else { contasBcSelecionados.add(id); el.style.borderColor='rgba(37,244,238,0.35)'; document.getElementById('contas-badge-'+id).className='bc-status running'; document.getElementById('contas-badge-'+id).innerText='✓ Selecionado'; }
+  document.getElementById('contas-bc-count').innerText=contasBcSelecionados.size;
+}
+function renderCampBCList() {
+  const div = document.getElementById('camp-bc-list');
+  if (!bcs.length) { div.innerHTML='<div class="empty"><div class="empty-icon">🏢</div><div class="empty-text">Cadastre BCs primeiro</div></div>'; return; }
+  div.innerHTML = bcs.map(bc=>{
+    const sel = campBcSelecionados.has(bc.id);
+    return `<div class="bc-card" onclick="toggleCampBC(${bc.id},this)" id="camp-bc-${bc.id}" style="cursor:pointer;border-color:${sel?'rgba(37,244,238,0.35)':'var(--border)'}"><div class="bc-card-top" style="margin-bottom:0"><div><div class="bc-name">${bc.nome}</div><div class="bc-pid">${bc.profileId}</div></div><span class="bc-status ${sel?'running':'idle'}" id="camp-badge-${bc.id}">${sel?'✓ Selecionado':'Selecionar'}</span></div></div>`;
+  }).join('');
+}
+function toggleCampBC(id, el) {
+  if (campBcSelecionados.has(id)) { campBcSelecionados.delete(id); el.style.borderColor='var(--border)'; document.getElementById('camp-badge-'+id).className='bc-status idle'; document.getElementById('camp-badge-'+id).innerText='Selecionar'; }
+  else { campBcSelecionados.add(id); el.style.borderColor='rgba(37,244,238,0.35)'; document.getElementById('camp-badge-'+id).className='bc-status running'; document.getElementById('camp-badge-'+id).innerText='✓ Selecionado'; }
+  document.getElementById('camp-bc-count').innerText=campBcSelecionados.size;
+}
+
+// ── LOG ───────────────────────────────────────────────────────────────────────
+function addLog(msg, type, logId) {
+  logId = logId||'log-body';
+  const log = document.getElementById(logId); if (!log) return;
+  const now = new Date();
+  const time = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const line = document.createElement('div');
+  line.className = 'log-line '+(type||'default');
+  line.innerHTML = `<span class="log-time">${time}</span><span class="log-msg">${msg}</span>`;
+  log.appendChild(line);
+  while(log.children.length>200) log.removeChild(log.firstChild);
+  log.scrollTop = log.scrollHeight;
+  if(logId!=='log-body') addLog(msg, type, 'log-body');
+}
+function clearLog() { document.getElementById('log-body').innerHTML=''; }
+
+// ── ACTIONS ───────────────────────────────────────────────────────────────────
+function startContas() {
+  if(!contasBcSelecionados.size) { showToast('Selecione ao menos um BC!','warn'); return; }
+  const selectedBCs = bcs.filter(bc=>contasBcSelecionados.has(bc.id));
+  const quantidade  = parseInt(document.getElementById('range-qtd-contas').value)||100;
+  document.getElementById('btn-start-contas').style.display='none';
+  document.getElementById('btn-stop-contas').style.display='flex';
+  iniciarEmFila(selectedBCs, quantidade, 'contas');
+  salvarDados(); renderDashboard();
+}
+function iniciarEmFila(lista, quantidade, modo) {
+  let fila=[...lista]; let rodando=0;
+  function prox() {
+    if(!fila.length||rodando>=maxSimultaneos) return;
+    const bc=fila.shift(); rodando++; bc.status='running';
+    const endpoint = modo==='contas'?'/api/start-contas':'/api/start-campanhas';
+    const logTarget= modo==='contas'?'log-contas':'log-camp';
+    const body = modo==='contas'
+      ? {profile_id:bc.profileId,quantidade,bc_id:bc.id,bc_nome:bc.nome}
+      : {
+          profile_id:bc.profileId,
+          post_code:document.getElementById('input-post-code').value.trim(),
+          simultaneas:parseInt(document.getElementById('range-simultaneas').value),
+          num_conjuntos:parseInt(document.getElementById('range-conjuntos').value),
+          data_inicio:document.getElementById('camp-data-inicio').value,
+          data_fim:document.getElementById('camp-data-fim').value,
+          objetivo:document.getElementById('camp-objetivo').value,
+          paises:document.getElementById('camp-pais').value,
+          bc_id:bc.id, bc_nome:bc.nome
+        };
+    addLog(`Iniciando BC: ${bc.nome} (${rodando}/${maxSimultaneos} slots)`,'info',logTarget);
+    fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+    .then(r=>r.json()).then(d=>{
+      addLog(`BC ${bc.nome}: ${d.message}`,d.ok?'success':'error',logTarget);
+      showToast(d.message,d.ok?'success':'error');
+      setTimeout(prox,1500);
+    }).catch(err=>{ addLog(`Erro ${bc.nome}: ${err.message}`,'error',logTarget); rodando--; setTimeout(prox,1500); });
+    if(fila.length&&rodando<maxSimultaneos) setTimeout(prox,1500);
   }
-  card.innerHTML = [...jobs].reverse().slice(0,6).map(j=>`
-    <div style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--line)">
-      <span class="mono">${j.id}</span>
-      <span style="flex:1;font-size:12px">${j.tipo==='criar_campanhas'?'📣 Campanhas':'👤 Contas'} · ${j.objetivo||''}</span>
-      <span class="badge ${j.status==='done'?'badge-ok':'badge-run'}">${j.status==='done'?'OK':'Rodando'}</span>
-      <span style="color:var(--green);font-family:var(--mono);font-size:11px">${j.sucesso??'—'}</span>
-      <span style="color:var(--red);font-family:var(--mono);font-size:11px">${j.falha??'—'}</span>
-      <span style="color:var(--text3);font-size:11px">${(j.criado_em||'').slice(0,16)}</span>
-    </div>`).join('');
+  for(let i=0;i<Math.min(maxSimultaneos,lista.length);i++) setTimeout(prox,i*1500);
+}
+function stopContas() {
+  document.getElementById('btn-start-contas').style.display='flex';
+  document.getElementById('btn-stop-contas').style.display='none';
+  fetch('/api/stop',{method:'POST'}).then(r=>r.json()).then(()=>showToast('Processo parado','warn'));
+  addLog('Processo interrompido pelo usuário','warn','log-contas');
+  bcs.forEach(bc=>{if(bc.status==='running')bc.status='idle';}); salvarDados(); renderDashboard();
+}
+function startCampanhas() {
+  if(!campBcSelecionados.size) { showToast('Selecione ao menos um BC!','warn'); return; }
+  const codigo = document.getElementById('input-post-code').value.trim();
+  if(!codigo) { showToast('Insira o link ou código do post TikTok!','warn'); return; }
+  const selectedBCs = bcs.filter(bc=>campBcSelecionados.has(bc.id));
+  document.getElementById('btn-start-camp').style.display='none';
+  document.getElementById('btn-stop-camp').style.display='flex';
+  iniciarEmFila(selectedBCs, null, 'campanhas');
+  salvarDados(); renderDashboard();
+}
+function stopCampanhas() {
+  document.getElementById('btn-start-camp').style.display='flex';
+  document.getElementById('btn-stop-camp').style.display='none';
+  fetch('/api/stop',{method:'POST'}).then(r=>r.json()).then(()=>showToast('Processo parado','warn'));
+  addLog('Processo interrompido pelo usuário','warn','log-camp');
+  bcs.forEach(bc=>{if(bc.status==='running')bc.status='idle';}); salvarDados(); renderDashboard();
 }
 
-async function loadJobs() {
-  const jobs  = await api('GET', '/api/jobs');
-  const tbody = document.getElementById('jobs-tbody');
-  if (!jobs.length) {
-    tbody.innerHTML = '<tr><td colspan="8"><div class="empty"><span class="empty-icon">📋</span><div class="empty-text">Nenhum job</div></div></td></tr>';
-    return;
-  }
-  tbody.innerHTML = [...jobs].reverse().map(j=>`<tr>
-    <td class="mono">${j.id}</td>
-    <td style="font-size:12px">${j.tipo==='criar_campanhas'?'📣 Campanhas':'👤 Contas'}</td>
-    <td style="font-size:11px;color:var(--text3)">${j.objetivo||'—'}</td>
-    <td><span class="badge ${j.status==='done'?'badge-ok':'badge-run'}">${j.status==='done'?'Concluído':'Rodando'}</span></td>
-    <td style="color:var(--green);font-family:var(--mono)">${j.sucesso??'—'}</td>
-    <td style="color:var(--red);font-family:var(--mono)">${j.falha??'—'}</td>
-    <td style="color:var(--text3);font-size:11px">${(j.criado_em||'').slice(0,16)}</td>
-    <td><button class="btn btn-ghost btn-xs" onclick="verJobLog('${j.id}')">Log</button></td>
-  </tr>`).join('');
+// ── SPARK POSTS ───────────────────────────────────────────────────────────────
+function loadSparkPosts() {
+  fetch('/api/spark-posts').then(r=>r.json()).then(data=>{
+    sparkPosts = data;
+    const sel = document.getElementById('select-spark-post');
+    if (sel) sel.innerHTML='<option value="">— Selecione um post salvo —</option>'+sparkPosts.map(p=>`<option value="${p.value}">${p.label}</option>`).join('');
+  }).catch(()=>{});
+}
+function usarSparkPost() {
+  const val = document.getElementById('select-spark-post').value;
+  if (val) { document.getElementById('input-post-code').value=val; showToast('Post carregado!','success'); }
+}
+function openAddPost() {
+  document.getElementById('post-label').value='';
+  document.getElementById('post-value').value='';
+  document.getElementById('modal-add-post').classList.add('open');
+}
+function salvarPost() {
+  const label = document.getElementById('post-label').value.trim();
+  const value = document.getElementById('post-value').value.trim();
+  if (!value) { showToast('Informe o link ou código!','warn'); return; }
+  fetch('/api/spark-posts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label:label||value,value})})
+  .then(r=>r.json()).then(d=>{
+    if(d.ok){ showToast('Post salvo!','success'); closeModal(); renderPostsList(); loadSparkPosts(); }
+    else showToast('Erro ao salvar','error');
+  }).catch(()=>showToast('Erro ao salvar','error'));
+}
+function renderPostsList() {
+  fetch('/api/spark-posts').then(r=>r.json()).then(data=>{
+    sparkPosts = data;
+    const div = document.getElementById('posts-list');
+    if (!data.length) { div.innerHTML='<div class="empty"><div class="empty-icon">🎬</div><div class="empty-text">Nenhum post salvo ainda. Adicione links de vídeos TikTok para reusar nas campanhas.</div></div>'; return; }
+    div.innerHTML = data.map(p=>`
+      <div class="spark-pill">
+        <div>
+          <div class="spark-pill-label">${p.label}</div>
+          <div class="spark-pill-id">${p.item_id?'item_id: '+p.item_id : p.value.slice(0,50)+'...'}</div>
+        </div>
+        <button class="btn btn-ghost btn-xs" onclick="usarNoFormulario('${p.value.replace(/'/g,"\\'")}')">↗ Usar</button>
+        <button class="btn btn-danger btn-xs" onclick="deletarPost('${p.id}')">✕</button>
+      </div>
+    `).join('');
+  }).catch(()=>{});
+}
+function usarNoFormulario(val) {
+  showPage('campanhas');
+  setTimeout(()=>{ document.getElementById('input-post-code').value=val; showToast('Post carregado na campanha!','success'); }, 100);
+}
+function deletarPost(id) {
+  fetch('/api/spark-posts/'+id,{method:'DELETE'}).then(()=>{ renderPostsList(); loadSparkPosts(); showToast('Post removido','warn'); });
 }
 
-async function verJobLog(id) {
-  document.getElementById('m-job-id').innerText = id;
-  const r    = await api('GET', `/api/job/${id}/logs`);
-  const body = document.getElementById('m-log-body');
-  body.innerHTML = r.logs.map(l=>
-    `<div class="ll"><span class="lt">${l.ts}</span><span class="lm ${l.level}">${esc(l.msg)}</span></div>`
-  ).join('') || '<div class="ll"><span class="lm info">Sem logs</span></div>';
-  body.scrollTop = body.scrollHeight;
-  openM('m-job-log');
+// ── RELATÓRIO ─────────────────────────────────────────────────────────────────
+function loadRelatorio() {
+  const filterBC   = document.getElementById('filter-bc').value;
+  const filterTipo = document.getElementById('filter-tipo').value;
+  let dados = relatorios;
+  if(filterBC!=='all') dados=dados.filter(r=>r.bc_id==filterBC);
+  if(filterTipo!=='all') dados=dados.filter(r=>r.status===filterTipo);
+  const suc=dados.filter(r=>r.status==='sucesso').length;
+  const fal=dados.filter(r=>r.status==='falha').length;
+  const taxa=dados.length>0?Math.round((suc/dados.length)*100):0;
+  document.getElementById('rel-sucesso').innerText=suc;
+  document.getElementById('rel-falha').innerText=fal;
+  document.getElementById('rel-taxa').innerText=taxa+'%';
+  const tbody=document.getElementById('relatorio-body');
+  if(!dados.length){tbody.innerHTML='<tr><td colspan="6"><div class="empty"><div class="empty-icon">📋</div><div class="empty-text">Nenhum registro ainda</div></div></td></tr>';return;}
+  tbody.innerHTML=[...dados].reverse().map(r=>
+    `<tr><td style="font-family:var(--mono);font-size:10px;color:var(--text2)">${r.horario}</td><td style="font-weight:700;font-size:12px">${r.bc_nome}</td><td style="font-family:var(--mono);font-size:11px">${r.conta}</td><td><span class="badge badge-info">${r.tipo}</span></td><td><span class="badge ${r.status==='sucesso'?'badge-ok':'badge-fail'}">${r.status==='sucesso'?'✓ Sucesso':'✕ Falha'}</span></td><td style="font-size:11px;color:var(--text2)">${r.detalhe||'—'}</td></tr>`
+  ).join('');
 }
 
-// ── MODAL ──────────────────────────────────────────────────────────────
-function openM(id)  { document.getElementById(id).classList.add('open') }
-function closeM(id) { document.getElementById(id).classList.remove('open') }
-document.querySelectorAll('.overlay').forEach(o => {
-  o.addEventListener('click', e => { if(e.target===o) o.classList.remove('open'); });
-});
+// ── SERVER POLLS ──────────────────────────────────────────────────────────────
+function loadServerStats() {
+  fetch('/api/stats').then(r=>r.json()).then(data=>{
+    if(data.stats) data.stats.forEach(s=>{ serverStats[s.bc_nome+'|'+s.tipo]=s; });
+    if(data.running) runningKeys=data.running;
+    renderDashboard(); renderBCTable();
+  }).catch(()=>{});
+}
+function pollStatus() {
+  fetch('/api/status').then(r=>r.json()).then(data=>{
+    if(data.logs&&data.logs.length) data.logs.forEach(log=>addLog('[worker] '+log.msg,log.type,'log-body'));
+    if(data.relatorios&&data.relatorios.length) {
+      data.relatorios.forEach(r=>{ relatorios.push(r); const bc=bcs.find(b=>b.id==r.bc_id); if(bc){if(r.status==='sucesso')bc.campanhasSucesso=(bc.campanhasSucesso||0)+1;else bc.campanhasFalha=(bc.campanhasFalha||0)+1;} });
+      salvarDados(); loadRelatorio();
+    }
+    if(data.totais_contas) Object.assign(totaisContas,data.totais_contas);
+    if(data.running!==undefined) runningKeys=data.running;
+    renderDashboard();
+  }).catch(()=>{});
+}
 
-// ── UTILS ──────────────────────────────────────────────────────────────
-function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
+// ── UTILS ─────────────────────────────────────────────────────────────────────
+function testarConexao() {
+  const url=document.getElementById('cfg-adspower-url').value;
+  fetch('/api/test-connection',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})})
+  .then(r=>r.json()).then(d=>{addLog(d.message,d.ok?'success':'error');showToast(d.message,d.ok?'success':'error');}).catch(()=>showToast('Erro ao testar','error'));
+}
+function exportarDados() {
+  const data=JSON.stringify({bcs,relatorios,serverStats},null,2);
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([data],{type:'application/json'}));
+  a.download='tikauto_'+new Date().toISOString().split('T')[0]+'.json'; a.click();
+  showToast('Exportado!','success');
+}
+function limparDados() {
+  if(confirm('Limpar histórico? Os BCs serão mantidos.')){relatorios=[];salvarDados();loadRelatorio();addLog('Histórico limpo!','warn');showToast('Histórico limpo','warn');}
+}
+function uploadContas() {
+  const bcSel=document.getElementById('upload-bc-sel').value;
+  const tipo=document.getElementById('upload-tipo-sel').value;
+  const arquivo=document.getElementById('upload-arquivo').files[0];
+  const result=document.getElementById('upload-result');
+  if(!bcSel){showToast('Selecione o BC!','warn');return;}
+  if(!arquivo){showToast('Selecione um arquivo!','warn');return;}
+  const bc=bcs.find(b=>b.id==bcSel); if(!bc){showToast('BC não encontrado!','error');return;}
+  const fd=new FormData(); fd.append('arquivo',arquivo); fd.append('bc_nome',bc.nome); fd.append('tipo',tipo);
+  result.style.display='block'; result.style.color='var(--text2)'; result.innerText='⏳ Importando...';
+  fetch('/api/upload-contas',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{
+    result.style.color=d.ok?'var(--green)':'var(--tt-red)'; result.innerText=(d.ok?'✓ ':'✕ ')+d.message;
+    showToast(d.message,d.ok?'success':'error'); if(d.ok){addLog(d.message,'success');loadServerStats();}
+  }).catch(()=>{result.style.color='var(--tt-red)';result.innerText='✕ Erro ao conectar';showToast('Erro ao fazer upload','error');});
+}
+function atualizarUploadBCSelect() {
+  const sel=document.getElementById('upload-bc-sel'); if(!sel) return;
+  sel.innerHTML='<option value="">Selecione o BC...</option>'+bcs.map(bc=>`<option value="${bc.id}">${bc.nome}</option>`).join('');
+}
 
-// ── OAUTH REDIRECT ─────────────────────────────────────────────────────
-const os = sessionStorage.getItem('os');
-const oe = sessionStorage.getItem('oe');
-if (os) { sessionStorage.removeItem('os'); setTimeout(()=>alert(`✓ OAuth OK! ${os} contas.`),400) }
-if (oe) { sessionStorage.removeItem('oe'); setTimeout(()=>alert('⚠ Erro OAuth: '+oe),400) }
-
-// ── INIT ───────────────────────────────────────────────────────────────
-(async () => {
-  await loadBCs();
-  await loadSparks();
-  await loadStats();
-  await loadRecentJobs();
-  setInterval(loadStats, 15000);
-})();
+// ── INIT ──────────────────────────────────────────────────────────────────────
+updateNavBadge(); renderDashboard(); renderBCTable(); atualizarUploadBCSelect();
+loadServerStats(); loadSparkPosts();
+setInterval(pollStatus, 3000);
+setInterval(loadServerStats, 15000);
 </script>
 </body>
 </html>
